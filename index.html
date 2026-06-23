@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>World Cup 2026 - Dashboard</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f0f2f5;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+            font-size: 1.8rem;
+            letter-spacing: 2px;
+        }
+
+        .current-date {
+            font-size: 1.1rem;
+            color: #666;
+            margin-bottom: 30px;
+            font-weight: 500;
+        }
+
+        .dashboard {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 25px;
+            justify-content: center;
+            width: 100%;
+            max-width: 1200px;
+        }
+
+        .scoreboard-card {
+            background-color: #ffffff;
+            padding: 25px;
+            border-radius: 16px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+            text-align: center;
+            flex: 1;
+            min-width: 360px;
+            max-width: 440px;
+            box-sizing: border-box;
+            border-top: 5px solid #1a73e8;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .title {
+            font-size: 0.8rem;
+            color: #999;
+            margin-bottom: 15px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .match-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .team-box {
+            flex: 1.2;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .flag {
+            width: 64px;
+            height: 64px;
+            object-fit: contain;
+        }
+
+        .team-name {
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: #333;
+            word-break: break-word;
+        }
+
+        .score-display {
+            flex: 1;
+            font-size: 2.5rem;
+            font-weight: 800;
+            color: #1a73e8;
+            letter-spacing: 1px;
+            white-space: nowrap;
+        }
+
+        .scorers-container {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 15px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            color: #444;
+            text-align: left;
+            gap: 15px;
+            line-height: 1.4;
+        }
+
+        .scorers-side {
+            flex: 1;
+            word-break: break-word;
+        }
+
+        .scorers-side.away {
+            text-align: right;
+        }
+
+        .status {
+            margin-top: 15px;
+            font-size: 0.85rem;
+            color: #28a745;
+            font-weight: 600;
+            background-color: #e8f5e9;
+            padding: 4px 12px;
+            border-radius: 20px;
+            display: inline-block;
+            text-transform: uppercase;
+        }
+
+        .status.live {
+            color: #dc3545;
+            background-color: #ffebee;
+        }
+
+        .update-time {
+            margin-top: 15px;
+            font-size: 0.7rem;
+            color: #bbb;
+        }
+
+        .no-games, .loading, .error {
+            font-size: 1.2rem;
+            color: #666;
+            text-align: center;
+            padding: 40px;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+            width: 100%;
+            max-width: 500px;
+        }
+
+        .error { color: #dc3545; }
+    </style>
+</head>
+<body>
+
+    <h1>Today's Matches</h1>
+    <div class="current-date" id="display-date">Loading schedule...</div>
+
+    <div class="dashboard" id="dashboard">
+        <div class="loading">Filtering matches and rendering shiny flags...</div>
+    </div>
+
+    <script>
+        const API_URL = 'https://worldcup26.ir/get/games';
+
+        // Mapeamento abrangente de países (nome em inglês vindo da API -> Código ISO oficial)
+       const countryCodes = {
+    'argentina': 'AR',
+    'algeria': 'DZ',
+    'australia': 'AU',
+    'austria': 'AT',
+    'belgium': 'BE',
+    'bosnia and herzegovina': 'BA',
+    'brazil': 'BR',
+    'cabo verde': 'CV',
+    'canada': 'CA',
+    'qatar': 'QA',
+    'colombia': 'CO',
+    'south korea': 'KR',
+    'ivory coast': 'CI',
+    'croatia': 'HR',
+    'curaçao': 'CW',
+    'egypt': 'EG',
+    'ecuador': 'EC',
+    'scotland': 'GB-SCT', // Nota: FlagsAPI costuma usar GB para o Reino Unido, ou o código específico se suportado
+    'spain': 'ES',
+    'united states': 'US',
+    'france': 'FR',
+    'ghana': 'GH',
+    'haiti': 'HT',
+    'england': 'GB-ENG',  // Nota: Se a FlagsAPI não carregar, use 'GB' como fallback geral
+    'iran': 'IR',
+    'iraq': 'IQ',
+    'japan': 'JP',
+    'jordan': 'JO',
+    'morocco': 'MA',
+    'mexico': 'MX',
+    'new zealand': 'NZ',
+    'norway': 'NO',
+    'netherlands': 'NL',
+    'panama': 'PA',
+    'paraguay': 'PY',
+    'portugal': 'PT',
+    'dr congo': 'CD',
+    'czechia': 'CZ',
+    'senegal': 'SN',
+    'south africa': 'ZA',
+    'switzerland': 'CH',
+    'sweden': 'SE',
+    'tunisia': 'TN',
+    'türkiye': 'TR',
+    'uruguay': 'UY',
+    'uzbekistan': 'UZ',
+    'germany': 'DE',
+    'saudi arabia': 'SA'
+};
+
+        // Função padronizada para usar unicamente a flagsapi com estilo shiny
+        function getShinyFlagUrl(teamName) {
+            if (!teamName || teamName === 'Unknown') return 'https://flagsapi.com/UN/shiny/64.png';
+            
+            const normalized = teamName.toLowerCase().trim();
+            const code = countryCodes[normalized] || 'UN'; // Retorna 'UN' (bandeira genérica do mundo) se não listado acima
+            
+            return `https://flagsapi.com/${code.toUpperCase()}/shiny/64.png`;
+        }
+
+        // Remove as aspas, colchetes, chaves e limpa o texto bruto de gols
+        function parseScorers(scorersRaw) {
+            if (!scorersRaw || scorersRaw === "null" || scorersRaw.trim() === "") {
+                return `<span style="color: #bbb; font-style: italic;">No goals</span>`;
+            }
+
+            try {
+                let scorersArray = scorersRaw;
+                if (typeof scorersRaw === 'string') {
+                    const cleanString = scorersRaw.trim();
+                    if (cleanString.startsWith('[') || cleanString.startsWith('{')) {
+                        scorersArray = JSON.parse(cleanString);
+                    } else {
+                        scorersArray = cleanString.split(/,|\n/);
+                    }
+                }
+
+                if (Array.isArray(scorersArray)) {
+                    return scorersArray
+                        .map(scorer => `⚽ ${String(scorer).replace(/[{}"]/g, '').trim()}`)
+                        .join('<br>');
+                } else if (typeof scorersArray === 'object') {
+                    return Object.values(scorersArray)
+                        .map(scorer => `⚽ ${String(scorer).replace(/[{}"]/g, '').trim()}`)
+                        .join('<br>');
+                }
+
+                return `⚽ ${String(scorersRaw).replace(/[{}"]/g, '').trim()}`;
+
+            } catch (e) {
+                return `⚽ ${String(scorersRaw).replace(/[{}"]/g, '').replace(/,/g, '<br>⚽ ').trim()}`;
+            }
+        }
+
+        async function fetchDailyScores() {
+            const dashboard = document.getElementById('dashboard');
+            const displayDate = document.getElementById('display-date');
+
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = String(today.getMonth() + 1).padStart(2, '0');
+            const day = String(today.getDate()).padStart(2, '0');
+            const usTodayStr = `${month}/${day}/${year}`; 
+
+            displayDate.innerText = `Date: ${usTodayStr}`;
+
+            try {
+                const response = await fetch(API_URL);
+                if (!response.ok) throw new Error('API server did not respond.');
+
+                const data = await response.json();
+                const games = Array.isArray(data) ? data : data.games || [];
+
+                const todaysGames = games.filter(game => {
+                    const gameLocalDate = String(game.local_date || '').trim();
+                    return gameLocalDate.startsWith(usTodayStr);
+                });
+
+                if (todaysGames.length === 0) {
+                    dashboard.innerHTML = `<div class="no-games">No matches scheduled for today (${usTodayStr}).</div>`;
+                    return;
+                }
+
+                dashboard.innerHTML = '';
+                const timeString = new Date().toLocaleTimeString('en-US', { hour12: false });
+
+                todaysGames.forEach(game => {
+                    const homeTeam = game.home_team_name_en || 'Unknown';
+                    const awayTeam = game.away_team_name_en || 'Unknown';
+                    const homeScore = game.home_score !== undefined ? game.home_score : '-';
+                    const awayScore = game.away_score !== undefined ? game.away_score : '-';
+                    
+                    const homeScorersHTML = parseScorers(game.home_scorers);
+                    const awayScorersHTML = parseScorers(game.away_scorers);
+
+                    const timeElapsed = String(game.time_elapsed || '').toLowerCase();
+                    let statusText = game.finished === "TRUE" ? "Finished" : "Scheduled";
+                    let statusClass = "status";
+
+                    if (timeElapsed === "live") {
+                        statusText = "🔴 LIVE";
+                        statusClass = "status live";
+                    }
+
+                    const card = document.createElement('div');
+                    card.className = 'scoreboard-card';
+                    card.innerHTML = `
+                        <div>
+                            <div class="title">Group ${game.group || '-'} - Matchday ${game.matchday || '-'}</div>
+                            <div class="match-container">
+                                <div class="team-box">
+                                    <img class="flag" src="${getShinyFlagUrl(homeTeam)}" onerror="this.src='https://flagsapi.com/UN/shiny/64.png'" alt="Flag">
+                                    <div class="team-name">${homeTeam}</div>
+                                </div>
+                                
+                                <div class="score-display">${homeScore} - ${awayScore}</div>
+                                
+                                <div class="team-box">
+                                    <img class="flag" src="${getShinyFlagUrl(awayTeam)}" onerror="this.src='https://flagsapi.com/UN/shiny/64.png'" alt="Flag">
+                                    <div class="team-name">${awayTeam}</div>
+                                </div>
+                            </div>
+
+                            <div class="scorers-container">
+                                <div class="scorers-side">${homeScorersHTML}</div>
+                                <div class="scorers-side away">${awayScorersHTML}</div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <div><span class="${statusClass}">${statusText}</span></div>
+                            <div class="update-time">Last API sync: ${timeString}</div>
+                        </div>
+                    `;
+                    dashboard.appendChild(card);
+                });
+
+            } catch (error) {
+                console.error(error);
+                dashboard.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+            }
+        }
+
+        fetchDailyScores();
+        setInterval(fetchDailyScores, 30000);
+    </script>
+</body>
+</html>
