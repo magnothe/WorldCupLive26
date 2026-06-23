@@ -428,6 +428,138 @@
         }
 
         /* ══════════════════════════════
+           STANDINGS
+        ══════════════════════════════ */
+        #btn-standings.active {
+            background: linear-gradient(135deg, var(--green), #16a34a);
+            border-color: transparent;
+            color: #fff;
+            box-shadow: 0 4px 20px rgba(34,197,94,0.40);
+        }
+
+        .standings-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(460px, 1fr));
+            gap: 22px;
+        }
+
+        .group-table {
+            background: var(--card-bg);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            border: 1px solid var(--card-border);
+            border-radius: 22px;
+            overflow: hidden;
+            animation: fadeUp 0.38s ease both;
+            position: relative;
+        }
+        .group-table::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, var(--green), var(--blue));
+        }
+
+        .group-table-header {
+            padding: 14px 18px 12px;
+            background: rgba(255,255,255,0.04);
+            border-bottom: 1px solid rgba(255,255,255,0.07);
+            font-size: 0.68rem;
+            font-weight: 800;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            color: var(--gold);
+        }
+
+        .standings-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.78rem;
+        }
+        .standings-table thead th {
+            padding: 7px 10px;
+            text-align: center;
+            font-size: 0.58rem;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: var(--text-lo);
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+        .standings-table thead th.col-team { text-align: left; }
+        .standings-table tbody tr {
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+            transition: background 0.15s ease;
+        }
+        .standings-table tbody tr:last-child { border-bottom: none; }
+        .standings-table tbody tr:hover { background: rgba(255,255,255,0.04); }
+        .standings-table tbody td {
+            padding: 9px 10px;
+            text-align: center;
+            color: var(--text-mid);
+            white-space: nowrap;
+        }
+        .standings-table tbody td.col-team { text-align: left; }
+
+        .st-pos {
+            font-weight: 700;
+            font-size: 0.70rem;
+            width: 28px;
+            color: var(--text-lo);
+        }
+        .st-pos.qualify { color: var(--green); }
+        .st-pos.playoff { color: var(--gold); }
+
+        .st-team-cell {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 130px;
+        }
+        .st-flag {
+            width: 28px;
+            height: 19px;
+            object-fit: cover;
+            border-radius: 3px;
+            flex-shrink: 0;
+            box-shadow: 0 1px 6px rgba(0,0,0,0.40);
+        }
+        .st-name {
+            font-weight: 600;
+            color: var(--text-hi);
+            font-size: 0.78rem;
+        }
+        .st-pts {
+            font-weight: 800;
+            font-size: 0.86rem;
+            color: var(--text-hi);
+        }
+        .st-gd { font-weight: 600; }
+        .st-gd.pos { color: var(--green); }
+        .st-gd.neg { color: var(--red); }
+
+        .standings-legend {
+            display: flex;
+            gap: 18px;
+            margin-top: 18px;
+            flex-wrap: wrap;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.65rem;
+            color: var(--text-mid);
+        }
+        .legend-dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+        }
+        .legend-dot.qualify { background: var(--green); }
+        .legend-dot.playoff { background: var(--gold); }
+
+        /* ══════════════════════════════
            RESPONSIVE
         ══════════════════════════════ */
         @media (max-width: 540px) {
@@ -435,6 +567,7 @@
             .dashboard { grid-template-columns: 1fr; }
             .score-display { font-size: 2.6rem; }
             .flag { width: 64px; height: 44px; }
+            .standings-grid { grid-template-columns: 1fr; }
         }
     </style>
 </head>
@@ -463,6 +596,9 @@
             <button class="toggle-btn" id="btn-upcoming" onclick="toggleSection('upcoming')" disabled>
                 📅 Próximos Jogos <span class="btn-count" id="count-upcoming">0</span>
             </button>
+            <button class="toggle-btn" id="btn-standings" onclick="toggleSection('standings')">
+                📊 Tabela de Grupos
+            </button>
         </div>
 
         <div class="section" id="past-section" style="display:none;">
@@ -473,6 +609,15 @@
         <div class="section" id="upcoming-section" style="display:none;">
             <div class="section-title">📅 Próximos Jogos</div>
             <div id="upcoming-dashboard"></div>
+        </div>
+
+        <div class="section" id="standings-section" style="display:none;">
+            <div class="section-title">📊 Tabela de Grupos</div>
+            <div id="standings-container"></div>
+            <div class="standings-legend">
+                <div class="legend-item"><div class="legend-dot qualify"></div> Classificado (1º / 2º lugar)</div>
+                <div class="legend-item"><div class="legend-dot playoff"></div> Possível classificação (melhor 3º)</div>
+            </div>
         </div>
     </main>
 
@@ -731,6 +876,122 @@
             btn.classList.toggle('active', !isVisible);
         }
 
+        function computeStandings(games) {
+            const groups = {};
+
+            // Register all teams per group from all scheduled games
+            games.forEach(game => {
+                const group = game.group;
+                if (!group) return;
+                const home = game.home_team_name_en;
+                const away = game.away_team_name_en;
+                if (!home || !away) return;
+                if (!groups[group]) groups[group] = {};
+                if (!groups[group][home]) groups[group][home] = { mp: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, pts: 0 };
+                if (!groups[group][away]) groups[group][away] = { mp: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, pts: 0 };
+            });
+
+            // Accumulate stats from finished games only
+            games.filter(g => g.finished === "TRUE").forEach(game => {
+                const group = game.group;
+                const home = game.home_team_name_en;
+                const away = game.away_team_name_en;
+                const hs = parseInt(game.home_score);
+                const as_ = parseInt(game.away_score);
+                if (!group || !groups[group] || !home || !away || isNaN(hs) || isNaN(as_)) return;
+
+                const ht = groups[group][home];
+                const at = groups[group][away];
+                ht.mp++; at.mp++;
+                ht.gf += hs; ht.ga += as_;
+                at.gf += as_; at.ga += hs;
+
+                if (hs > as_)      { ht.w++; ht.pts += 3; at.l++; }
+                else if (hs < as_) { at.w++; at.pts += 3; ht.l++; }
+                else               { ht.d++; ht.pts++;    at.d++; at.pts++; }
+            });
+
+            return groups;
+        }
+
+        function renderStandings(games) {
+            const container = document.getElementById('standings-container');
+            const groups = computeStandings(games);
+            const sortedGroupNames = Object.keys(groups).sort();
+
+            if (sortedGroupNames.length === 0) {
+                container.innerHTML = '<div class="no-games">Nenhum grupo encontrado.</div>';
+                return;
+            }
+
+            const grid = document.createElement('div');
+            grid.className = 'standings-grid';
+
+            sortedGroupNames.forEach(groupName => {
+                const teamMap = groups[groupName];
+                const teamList = Object.entries(teamMap).map(([name, s]) => ({
+                    name, ...s, gd: s.gf - s.ga
+                })).sort((a, b) => {
+                    if (b.pts !== a.pts) return b.pts - a.pts;
+                    if (b.gd  !== a.gd)  return b.gd  - a.gd;
+                    if (b.gf  !== a.gf)  return b.gf  - a.gf;
+                    return a.name.localeCompare(b.name);
+                });
+
+                const rows = teamList.map((team, i) => {
+                    const pos = i + 1;
+                    const posClass = pos <= 2 ? 'qualify' : pos === 3 ? 'playoff' : '';
+                    const gdStr = team.gd > 0 ? `+${team.gd}` : String(team.gd);
+                    const gdClass = team.gd > 0 ? 'pos' : team.gd < 0 ? 'neg' : '';
+                    const flagUrl = getShinyFlagUrl(team.name);
+                    return `
+                        <tr>
+                            <td class="st-pos ${posClass}">${pos}</td>
+                            <td class="col-team">
+                                <div class="st-team-cell">
+                                    <img class="st-flag" src="${flagUrl}" onerror="this.src='https://flagsapi.com/UN/shiny/64.png'" alt="${team.name}">
+                                    <span class="st-name">${team.name}</span>
+                                </div>
+                            </td>
+                            <td>${team.mp}</td>
+                            <td>${team.w}</td>
+                            <td>${team.d}</td>
+                            <td>${team.l}</td>
+                            <td>${team.gf}</td>
+                            <td>${team.ga}</td>
+                            <td class="st-gd ${gdClass}">${gdStr}</td>
+                            <td class="st-pts">${team.pts}</td>
+                        </tr>`;
+                }).join('');
+
+                const card = document.createElement('div');
+                card.className = 'group-table';
+                card.innerHTML = `
+                    <div class="group-table-header">Grupo ${groupName}</div>
+                    <table class="standings-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th class="col-team">Seleção</th>
+                                <th title="Jogos">J</th>
+                                <th title="Vitórias">V</th>
+                                <th title="Empates">E</th>
+                                <th title="Derrotas">D</th>
+                                <th title="Gols Pró">GP</th>
+                                <th title="Gols Contra">GC</th>
+                                <th title="Saldo de Gols">SG</th>
+                                <th title="Pontos">Pts</th>
+                            </tr>
+                        </thead>
+                        <tbody>${rows}</tbody>
+                    </table>`;
+                grid.appendChild(card);
+            });
+
+            container.innerHTML = '';
+            container.appendChild(grid);
+        }
+
         function renderGroupedGames(games, container, timeString, ascending) {
             const grouped = {};
             games.forEach(game => {
@@ -821,7 +1082,7 @@
                 // --- Toggle bar ---
                 const hasPast     = pastGames.length > 0;
                 const hasUpcoming = upcomingGames.length > 0;
-                toggleBar.style.display = (hasPast || hasUpcoming) ? 'flex' : 'none';
+                toggleBar.style.display = 'flex';
 
                 document.getElementById('count-past').textContent     = pastGames.length;
                 document.getElementById('count-upcoming').textContent = upcomingGames.length;
@@ -833,6 +1094,9 @@
 
                 // --- Upcoming (rendered once, hidden by default) ---
                 if (hasUpcoming) renderGroupedGames(upcomingGames, upcomingDashboard, timeString, true);
+
+                // --- Standings ---
+                renderStandings(games);
 
             } catch (error) {
                 console.error(error);
