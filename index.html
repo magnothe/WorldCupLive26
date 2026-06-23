@@ -738,6 +738,17 @@
             return `https://flagsapi.com/${code.toUpperCase()}/shiny/64.png`;
         }
 
+        function getFlatFlagUrl(teamName) {
+            if (!teamName || teamName === 'Unknown') return 'https://flagcdn.com/w40/un.png';
+            const normalized = teamName.toLowerCase().trim();
+            if (flagcdnOverrides[normalized]) {
+                return `https://flagcdn.com/w40/${flagcdnOverrides[normalized]}.png`;
+            }
+            const code = countryCodes[normalized];
+            if (!code) return 'https://flagcdn.com/w40/un.png';
+            return `https://flagcdn.com/w40/${code.toLowerCase()}.png`;
+        }
+
         const NO_GOALS_HTML = `<span style="color: #bbb; font-style: italic;">Sem gols</span>`;
 
         function parseScorers(scorersRaw) {
@@ -948,16 +959,17 @@
                     const posClass = pos <= 2 ? 'qualify' : pos === 3 ? 'playoff' : '';
                     const gdStr = team.gd > 0 ? `+${team.gd}` : String(team.gd);
                     const gdClass = team.gd > 0 ? 'pos' : team.gd < 0 ? 'neg' : '';
-                    const flagUrl = getShinyFlagUrl(team.name);
+                    const flagUrl = getFlatFlagUrl(team.name);
                     return `
                         <tr>
                             <td class="st-pos ${posClass}">${pos}</td>
                             <td class="col-team">
                                 <div class="st-team-cell">
-                                    <img class="st-flag" src="${flagUrl}" onerror="this.src='https://flagsapi.com/UN/shiny/64.png'" alt="${team.name}">
+                                    <img class="st-flag" src="${flagUrl}" onerror="this.src='https://flagcdn.com/w40/un.png'" alt="${team.name}">
                                     <span class="st-name">${team.name}</span>
                                 </div>
                             </td>
+                            <td class="st-pts">${team.pts}</td>
                             <td>${team.mp}</td>
                             <td>${team.w}</td>
                             <td>${team.d}</td>
@@ -965,7 +977,6 @@
                             <td>${team.gf}</td>
                             <td>${team.ga}</td>
                             <td class="st-gd ${gdClass}">${gdStr}</td>
-                            <td class="st-pts">${team.pts}</td>
                         </tr>`;
                 }).join('');
 
@@ -979,6 +990,7 @@
                                 <tr>
                                     <th>#</th>
                                     <th class="col-team">Seleção</th>
+                                    <th title="Pontos">Pts</th>
                                     <th title="Jogos">J</th>
                                     <th title="Vitórias">V</th>
                                     <th title="Empates">E</th>
@@ -986,7 +998,6 @@
                                     <th title="Gols Pró">GP</th>
                                     <th title="Gols Contra">GC</th>
                                     <th title="Saldo de Gols">SG</th>
-                                    <th title="Pontos">Pts</th>
                                 </tr>
                             </thead>
                             <tbody>${rows}</tbody>
