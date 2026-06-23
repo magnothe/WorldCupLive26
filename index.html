@@ -161,6 +161,39 @@
             color: #bbb;
         }
 
+        .section {
+            width: 100%;
+            max-width: 1200px;
+            margin-bottom: 50px;
+        }
+
+        .section-title {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: #333;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 3px solid #1a73e8;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+        }
+
+        .date-group {
+            margin-bottom: 30px;
+        }
+
+        .date-group-header {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: #444;
+            margin-bottom: 15px;
+            padding: 8px 14px;
+            background: #e8f0fe;
+            border-radius: 8px;
+            text-transform: capitalize;
+            border-left: 4px solid #1a73e8;
+        }
+
         .no-games, .loading, .error {
             font-size: 1.2rem;
             color: #666;
@@ -178,11 +211,19 @@
 </head>
 <body>
 
-    <h1>Today's Matches</h1>
+    <h1>World Cup 2026</h1>
     <div class="current-date" id="display-date">Loading schedule...</div>
 
-    <div class="dashboard" id="dashboard">
-        <div class="loading">Filtering matches and rendering shiny flags...</div>
+    <div class="section" id="today-section">
+        <div class="section-title">📅 Jogos de Hoje</div>
+        <div class="dashboard" id="today-dashboard">
+            <div class="loading">Carregando jogos...</div>
+        </div>
+    </div>
+
+    <div class="section" id="past-section" style="display:none;">
+        <div class="section-title">📋 Resultados Anteriores</div>
+        <div id="past-dashboard"></div>
     </div>
 
     <script>
@@ -321,98 +362,144 @@
             return `${h}:${m}${suffix}`;
         }
 
+        function buildCard(game, timeString) {
+            const homeTeam = game.home_team_name_en || 'Unknown';
+            const awayTeam = game.away_team_name_en || 'Unknown';
+            const homeScore = game.home_score !== undefined ? game.home_score : '-';
+            const awayScore = game.away_score !== undefined ? game.away_score : '-';
+
+            const homeScorersHTML = parseScorers(game.home_scorers);
+            const awayScorersHTML = parseScorers(game.away_scorers);
+
+            const timeElapsed = String(game.time_elapsed || '').toLowerCase();
+            let statusText = game.finished === "TRUE" ? "Finalizado" : "Agendado";
+            let statusClass = "status";
+
+            if (timeElapsed === "live") {
+                statusText = "🔴 AO VIVO";
+                statusClass = "status live";
+            }
+
+            const brasiliaTime = convertToBrasilia(game.local_date, game.stadium_id);
+            const matchTimeHTML = brasiliaTime
+                ? `<div class="match-time"><span class="clock-icon">🕐</span>${brasiliaTime} (Brasília)</div>`
+                : '';
+
+            const card = document.createElement('div');
+            card.className = 'scoreboard-card';
+            card.innerHTML = `
+                <div>
+                    <div class="title">Grupo ${game.group || '-'} - Rodada ${game.matchday || '-'}</div>
+                    ${matchTimeHTML}
+                    <div class="match-container">
+                        <div class="team-box">
+                            <img class="flag" src="${getShinyFlagUrl(homeTeam)}" onerror="this.src='https://flagsapi.com/UN/shiny/64.png'" alt="Flag">
+                            <div class="team-name">${homeTeam}</div>
+                        </div>
+                        <div class="score-display">${homeScore} - ${awayScore}</div>
+                        <div class="team-box">
+                            <img class="flag" src="${getShinyFlagUrl(awayTeam)}" onerror="this.src='https://flagsapi.com/UN/shiny/64.png'" alt="Flag">
+                            <div class="team-name">${awayTeam}</div>
+                        </div>
+                    </div>
+                    <div class="scorers-container">
+                        <div class="scorers-side">${homeScorersHTML}</div>
+                        <div class="scorers-side away">${awayScorersHTML}</div>
+                    </div>
+                </div>
+                <div>
+                    <div><span class="${statusClass}">${statusText}</span></div>
+                    <div class="update-time">Última sync: ${timeString}</div>
+                </div>
+            `;
+            return card;
+        }
+
         async function fetchDailyScores() {
-            const dashboard = document.getElementById('dashboard');
+            const todayDashboard = document.getElementById('today-dashboard');
+            const pastDashboard = document.getElementById('past-dashboard');
+            const pastSection = document.getElementById('past-section');
             const displayDate = document.getElementById('display-date');
 
             const today = new Date();
-            const year = today.getFullYear();
+            const todayDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
             const month = String(today.getMonth() + 1).padStart(2, '0');
             const day = String(today.getDate()).padStart(2, '0');
-            const usTodayStr = `${month}/${day}/${year}`; 
+            const year = today.getFullYear();
+            const usTodayStr = `${month}/${day}/${year}`;
 
-            displayDate.innerText = `Date: ${usTodayStr}`;
+            displayDate.innerText = `${day}/${month}/${year}`;
 
             try {
                 const response = await fetch(API_URL);
-                if (!response.ok) throw new Error('API server did not respond.');
+                if (!response.ok) throw new Error('API did not respond.');
 
                 const data = await response.json();
                 const games = Array.isArray(data) ? data : data.games || [];
+                const timeString = new Date().toLocaleTimeString('pt-BR', { hour12: false });
 
-                const todaysGames = games.filter(game => {
-                    const gameLocalDate = String(game.local_date || '').trim();
-                    return gameLocalDate.startsWith(usTodayStr);
+                const todaysGames = games.filter(game =>
+                    String(game.local_date || '').trim().startsWith(usTodayStr)
+                );
+
+                const pastGames = games.filter(game => {
+                    const datePart = String(game.local_date || '').trim().split(' ')[0];
+                    if (!datePart) return false;
+                    const [m, d, y] = datePart.split('/').map(Number);
+                    return new Date(y, m - 1, d) < todayDate;
                 });
 
+                // --- Today ---
+                todayDashboard.innerHTML = '';
                 if (todaysGames.length === 0) {
-                    dashboard.innerHTML = `<div class="no-games">No matches scheduled for today (${usTodayStr}).</div>`;
+                    todayDashboard.innerHTML = `<div class="no-games">Nenhuma partida hoje (${day}/${month}/${year}).</div>`;
+                } else {
+                    todaysGames.forEach(game => todayDashboard.appendChild(buildCard(game, timeString)));
+                }
+
+                // --- Past ---
+                if (pastGames.length === 0) {
+                    pastSection.style.display = 'none';
                     return;
                 }
 
-                dashboard.innerHTML = '';
-                const timeString = new Date().toLocaleTimeString('en-US', { hour12: false });
-
-                todaysGames.forEach(game => {
-                    const homeTeam = game.home_team_name_en || 'Unknown';
-                    const awayTeam = game.away_team_name_en || 'Unknown';
-                    const homeScore = game.home_score !== undefined ? game.home_score : '-';
-                    const awayScore = game.away_score !== undefined ? game.away_score : '-';
-                    
-                    const homeScorersHTML = parseScorers(game.home_scorers);
-                    const awayScorersHTML = parseScorers(game.away_scorers);
-
-                    const timeElapsed = String(game.time_elapsed || '').toLowerCase();
-                    let statusText = game.finished === "TRUE" ? "Finished" : "Scheduled";
-                    let statusClass = "status";
-
-                    if (timeElapsed === "live") {
-                        statusText = "🔴 LIVE";
-                        statusClass = "status live";
-                    }
-
-                    const brasiliaTime = convertToBrasilia(game.local_date, game.stadium_id);
-                    const matchTimeHTML = brasiliaTime
-                        ? `<div class="match-time"><span class="clock-icon">🕐</span>${brasiliaTime} (Brasília)</div>`
-                        : '';
-
-                    const card = document.createElement('div');
-                    card.className = 'scoreboard-card';
-                    card.innerHTML = `
-                        <div>
-                            <div class="title">Group ${game.group || '-'} - Matchday ${game.matchday || '-'}</div>
-                            ${matchTimeHTML}
-                            <div class="match-container">
-                                <div class="team-box">
-                                    <img class="flag" src="${getShinyFlagUrl(homeTeam)}" onerror="this.src='https://flagsapi.com/UN/shiny/64.png'" alt="Flag">
-                                    <div class="team-name">${homeTeam}</div>
-                                </div>
-                                
-                                <div class="score-display">${homeScore} - ${awayScore}</div>
-                                
-                                <div class="team-box">
-                                    <img class="flag" src="${getShinyFlagUrl(awayTeam)}" onerror="this.src='https://flagsapi.com/UN/shiny/64.png'" alt="Flag">
-                                    <div class="team-name">${awayTeam}</div>
-                                </div>
-                            </div>
-
-                            <div class="scorers-container">
-                                <div class="scorers-side">${homeScorersHTML}</div>
-                                <div class="scorers-side away">${awayScorersHTML}</div>
-                            </div>
-                        </div>
-
-                        <div>
-                            <div><span class="${statusClass}">${statusText}</span></div>
-                            <div class="update-time">Last API sync: ${timeString}</div>
-                        </div>
-                    `;
-                    dashboard.appendChild(card);
+                const grouped = {};
+                pastGames.forEach(game => {
+                    const datePart = String(game.local_date || '').split(' ')[0];
+                    if (!grouped[datePart]) grouped[datePart] = [];
+                    grouped[datePart].push(game);
                 });
+
+                const sortedDates = Object.keys(grouped).sort((a, b) => {
+                    const [am, ad, ay] = a.split('/').map(Number);
+                    const [bm, bd, by] = b.split('/').map(Number);
+                    return new Date(by, bm - 1, bd) - new Date(ay, am - 1, ad);
+                });
+
+                pastDashboard.innerHTML = '';
+                sortedDates.forEach(dateStr => {
+                    const [m, d, y] = dateStr.split('/').map(Number);
+                    const label = new Date(y, m - 1, d).toLocaleDateString('pt-BR', {
+                        weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+                    });
+
+                    const groupEl = document.createElement('div');
+                    groupEl.className = 'date-group';
+                    groupEl.innerHTML = `<div class="date-group-header">${label}</div>`;
+
+                    const grid = document.createElement('div');
+                    grid.className = 'dashboard';
+                    grouped[dateStr].forEach(game => grid.appendChild(buildCard(game, timeString)));
+
+                    groupEl.appendChild(grid);
+                    pastDashboard.appendChild(groupEl);
+                });
+
+                pastSection.style.display = 'block';
 
             } catch (error) {
                 console.error(error);
-                dashboard.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+                todayDashboard.innerHTML = `<div class="error">Erro: ${error.message}</div>`;
             }
         }
 
