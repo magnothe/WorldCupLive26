@@ -237,22 +237,17 @@
             gap: 10px;
         }
         .flag-ring {
-            width: 70px; height: 70px;
-            border-radius: 50%;
+            border-radius: 10px;
             overflow: hidden;
-            display: flex;
-            align-items: center;
-            justify-content: center;
             flex-shrink: 0;
-            background: rgba(255,255,255,0.06);
-            border: 2px solid rgba(255,255,255,0.12);
-            box-shadow: 0 4px 18px rgba(0,0,0,0.35), inset 0 0 0 1px rgba(255,255,255,0.05);
-            transition: box-shadow 0.2s ease;
+            box-shadow: 0 4px 18px rgba(0,0,0,0.40);
+            transition: box-shadow 0.2s ease, transform 0.2s ease;
         }
         .scoreboard-card:hover .flag-ring {
-            box-shadow: 0 4px 22px rgba(59,130,246,0.28), inset 0 0 0 1px rgba(255,255,255,0.08);
+            box-shadow: 0 6px 24px rgba(59,130,246,0.30);
+            transform: scale(1.05);
         }
-        .flag { width: 90px; height: 90px; object-fit: cover; }
+        .flag { width: 80px; height: 54px; object-fit: cover; display: block; }
         .team-name {
             font-size: 0.80rem;
             font-weight: 700;
@@ -439,8 +434,7 @@
             .site-header h1 { font-size: 1.6rem; letter-spacing: 3px; }
             .dashboard { grid-template-columns: 1fr; }
             .score-display { font-size: 2.6rem; }
-            .flag-ring { width: 58px; height: 58px; }
-            .flag { width: 74px; height: 74px; }
+            .flag { width: 64px; height: 44px; }
         }
     </style>
 </head>
