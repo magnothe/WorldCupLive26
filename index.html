@@ -4,324 +4,631 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>World Cup 2026 - Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Bebas+Neue&display=swap" rel="stylesheet">
     <style>
+        html { scroll-behavior: smooth; }
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --gold:   #f59e0b;
+            --orange: #f97316;
+            --blue:   #3b82f6;
+            --purple: #8b5cf6;
+            --green:  #22c55e;
+            --red:    #ef4444;
+            --card-bg:     rgba(255,255,255,0.055);
+            --card-border: rgba(255,255,255,0.10);
+            --text-hi:  rgba(255,255,255,0.94);
+            --text-mid: rgba(255,255,255,0.52);
+            --text-lo:  rgba(255,255,255,0.26);
+        }
+
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #f0f2f5;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
+            font-family: 'Inter', 'Segoe UI', sans-serif;
+            -webkit-overflow-scrolling: touch;
+            background:
+                radial-gradient(ellipse 90% 55% at 5%   0%,  rgba(59,130,246,0.13)  0%, transparent 55%),
+                radial-gradient(ellipse 70% 45% at 95% 100%, rgba(139,92,246,0.10)  0%, transparent 55%),
+                radial-gradient(ellipse 60% 40% at 50%  60%, rgba(245,158,11,0.05)  0%, transparent 55%),
+                #06090f;
             min-height: 100vh;
-            margin: 0;
-            padding: 20px;
-            box-sizing: border-box;
+            color: var(--text-hi);
         }
 
-        h1 {
-            color: #333;
-            margin-bottom: 5px;
+        /* ══════════════════════════════
+           HEADER
+        ══════════════════════════════ */
+        .site-header {
+            position: relative;
+            overflow: hidden;
+            text-align: center;
+            padding: 52px 20px 60px;
+            background:
+                radial-gradient(ellipse 140% 200% at 50% 160%, rgba(245,158,11,0.18) 0%, transparent 50%),
+                radial-gradient(ellipse  90% 120% at  5% -10%, rgba(59,130,246,0.22)  0%, transparent 50%),
+                linear-gradient(180deg, #0b1220 0%, #0e1728 100%);
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+        /* linha dourada no bottom */
+        .site-header::after {
+            content: '';
+            position: absolute;
+            bottom: 0; left: 10%; right: 10%;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(245,158,11,0.6), transparent);
+        }
+        /* orb decorativo atrás do troféu */
+        .site-header::before {
+            content: '';
+            position: absolute;
+            width: 360px; height: 360px;
+            border-radius: 50%;
+            top: -130px; left: 50%;
+            transform: translateX(-50%);
+            background: radial-gradient(circle, rgba(245,158,11,0.10) 0%, transparent 70%);
+            pointer-events: none;
+        }
+
+        .trophy {
+            font-size: 3.2rem;
+            display: block;
+            margin-bottom: 10px;
+            filter: drop-shadow(0 0 22px rgba(245,158,11,0.55));
+            animation: floatTrophy 3.2s ease-in-out infinite;
+        }
+        @keyframes floatTrophy {
+            0%, 100% { transform: translateY(0px);   }
+            50%       { transform: translateY(-8px); }
+        }
+
+        .site-header h1 {
+            font-size: 2.4rem;
+            font-weight: 900;
+            letter-spacing: 6px;
             text-transform: uppercase;
-            font-size: 1.8rem;
+            color: #fff;
+            text-shadow: 0 2px 30px rgba(255,255,255,0.12);
+        }
+        .site-header h1 span {
+            background: linear-gradient(90deg, var(--gold), var(--orange));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .header-sub {
+            margin-top: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+        }
+        .header-sub::before,
+        .header-sub::after {
+            content: '';
+            width: 40px; height: 1px;
+            background: rgba(255,255,255,0.20);
+        }
+        .current-date {
+            color: var(--text-mid);
+            font-size: 0.76rem;
+            font-weight: 500;
             letter-spacing: 2px;
+            text-transform: uppercase;
         }
 
-        .current-date {
-            font-size: 1.1rem;
-            color: #666;
-            margin-bottom: 30px;
-            font-weight: 500;
+        /* ══════════════════════════════
+           LAYOUT
+        ══════════════════════════════ */
+        .main-content {
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 44px 20px 88px;
+        }
+
+        .section { margin-bottom: 56px; }
+
+        .section-title {
+            font-size: 0.66rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            color: var(--gold);
+            margin-bottom: 26px;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+        .section-title::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: linear-gradient(to right, rgba(245,158,11,0.35), transparent);
         }
 
         .dashboard {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 25px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(340px, 440px));
+            gap: 20px;
             justify-content: center;
-            width: 100%;
-            max-width: 1200px;
         }
 
+        /* ══════════════════════════════
+           CARD
+        ══════════════════════════════ */
         .scoreboard-card {
-            background-color: #ffffff;
-            padding: 25px;
-            border-radius: 16px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
-            text-align: center;
-            flex: 1;
-            min-width: 360px;
-            max-width: 440px;
-            box-sizing: border-box;
-            border-top: 5px solid #1a73e8;
+            background: var(--card-bg);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            border: 1px solid var(--card-border);
+            border-radius: 22px;
+            padding: 22px 22px 18px;
             display: flex;
             flex-direction: column;
-            justify-content: space-between;
+            gap: 16px;
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
+            animation: fadeUp 0.38s ease both;
+        }
+        /* barra superior — jogos de hoje */
+        .scoreboard-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, var(--blue), var(--purple));
+        }
+        /* brilho interno sutil */
+        .scoreboard-card::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: 22px;
+            background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(255,255,255,0.04) 0%, transparent 70%);
+            pointer-events: none;
+        }
+        .scoreboard-card:hover {
+            transform: translateY(-5px);
+            border-color: rgba(255,255,255,0.18);
+            box-shadow: 0 12px 40px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.06);
+        }
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to   { opacity: 1; transform: translateY(0); }
         }
 
-        .title {
-            font-size: 0.8rem;
-            color: #999;
-            margin-bottom: 15px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-
-        .match-container {
+        /* ── Card header ── */
+        .card-header {
             display: flex;
+            align-items: center;
             justify-content: space-between;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .team-box {
-            flex: 1.2;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
             gap: 8px;
         }
-
-        .flag {
-            width: 64px;
-            height: 64px;
-            object-fit: contain;
-        }
-
-        .team-name {
-            font-size: 1.1rem;
-            font-weight: bold;
-            color: #333;
-            word-break: break-word;
-        }
-
-        .score-display {
-            flex: 1;
-            font-size: 2.5rem;
-            font-weight: 800;
-            color: #1a73e8;
-            letter-spacing: 1px;
-            white-space: nowrap;
-        }
-
-        .scorers-container {
-            display: flex;
-            justify-content: space-between;
-            margin-top: 15px;
-            padding: 10px;
-            background: #f8f9fa;
-            border-radius: 8px;
-            font-size: 0.8rem;
-            color: #444;
-            text-align: left;
-            gap: 15px;
-            line-height: 1.4;
-        }
-
-        .scorers-side {
-            flex: 1;
-            word-break: break-word;
-        }
-
-        .scorers-side.away {
-            text-align: right;
-        }
-
-        .status {
-            margin-top: 15px;
-            font-size: 0.85rem;
-            color: #28a745;
-            font-weight: 600;
-            background-color: #e8f5e9;
-            padding: 4px 12px;
-            border-radius: 20px;
-            display: inline-block;
-            text-transform: uppercase;
-        }
-
-        .status.live {
-            color: #dc3545;
-            background-color: #ffebee;
-        }
-
-        .match-time {
-            margin-top: 6px;
-            font-size: 0.85rem;
-            color: #555;
-            font-weight: 600;
-            letter-spacing: 0.5px;
-        }
-
-        .match-time .clock-icon {
-            margin-right: 4px;
-        }
-
-        .update-time {
-            margin-top: 15px;
-            font-size: 0.7rem;
-            color: #bbb;
-        }
-
-        .section {
-            width: 100%;
-            max-width: 1200px;
-            margin-bottom: 50px;
-        }
-
-        .section-title {
-            font-size: 1.2rem;
+        .title {
+            font-size: 0.62rem;
             font-weight: 700;
-            color: #333;
-            margin-bottom: 20px;
-            padding-bottom: 10px;
-            border-bottom: 3px solid #1a73e8;
+            color: var(--text-lo);
             text-transform: uppercase;
             letter-spacing: 1.5px;
         }
-
-        .date-group {
-            margin-bottom: 30px;
-        }
-
-        .date-group-header {
-            font-size: 0.95rem;
+        .match-time {
+            font-size: 0.70rem;
             font-weight: 600;
-            color: #444;
-            margin-bottom: 15px;
-            padding: 8px 14px;
-            background: #e8f0fe;
-            border-radius: 8px;
-            text-transform: capitalize;
-            border-left: 4px solid #1a73e8;
+            color: var(--gold);
+            background: rgba(245,158,11,0.12);
+            border: 1px solid rgba(245,158,11,0.22);
+            padding: 3px 11px;
+            border-radius: 20px;
+            white-space: nowrap;
         }
 
-        .no-games, .loading, .error {
-            font-size: 1.2rem;
-            color: #666;
+        /* ── Teams & score ── */
+        .match-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .team-box {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+        .flag-ring {
+            width: 70px; height: 70px;
+            border-radius: 50%;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            background: rgba(255,255,255,0.06);
+            border: 2px solid rgba(255,255,255,0.12);
+            box-shadow: 0 4px 18px rgba(0,0,0,0.35), inset 0 0 0 1px rgba(255,255,255,0.05);
+            transition: box-shadow 0.2s ease;
+        }
+        .scoreboard-card:hover .flag-ring {
+            box-shadow: 0 4px 22px rgba(59,130,246,0.28), inset 0 0 0 1px rgba(255,255,255,0.08);
+        }
+        .flag { width: 90px; height: 90px; object-fit: cover; }
+        .team-name {
+            font-size: 0.80rem;
+            font-weight: 700;
+            color: var(--text-hi);
             text-align: center;
-            padding: 40px;
-            background: white;
-            border-radius: 16px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
-            width: 100%;
-            max-width: 500px;
+            word-break: break-word;
+            line-height: 1.2;
         }
 
-        .error { color: #dc3545; }
+        .score-wrapper { text-align: center; flex-shrink: 0; }
+        .score-display {
+            font-family: 'Bebas Neue', 'Inter', sans-serif;
+            font-size: 3.4rem;
+            font-weight: 400;
+            letter-spacing: 2px;
+            line-height: 1;
+            background: linear-gradient(135deg, #f59e0b 0%, #f97316 60%, #ec4899 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            filter: drop-shadow(0 2px 12px rgba(245,158,11,0.30));
+        }
+
+        /* ── Scorers ── */
+        .scorers-container {
+            display: flex;
+            gap: 10px;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.07);
+            border-radius: 12px;
+            padding: 10px 14px;
+            font-size: 0.70rem;
+            line-height: 1.75;
+        }
+        .scorers-side { flex: 1; color: var(--text-mid); word-break: break-word; }
+        .scorers-side.away { text-align: right; }
+
+        /* ── Card footer ── */
+        .card-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+        .status {
+            font-size: 0.60rem;
+            font-weight: 700;
+            padding: 4px 12px;
+            border-radius: 20px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--green);
+            background: rgba(34,197,94,0.12);
+            border: 1px solid rgba(34,197,94,0.22);
+        }
+        .status.live {
+            color: #fff;
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            border-color: transparent;
+            box-shadow: 0 0 18px rgba(239,68,68,0.45);
+            animation: livePulse 1.4s ease-in-out infinite;
+        }
+        @keyframes livePulse {
+            0%, 100% { box-shadow: 0 0 18px rgba(239,68,68,0.45); }
+            50%       { box-shadow: 0 0 28px rgba(239,68,68,0.75); }
+        }
+        .update-time {
+            font-size: 0.58rem;
+            color: var(--text-lo);
+        }
+
+        /* ══════════════════════════════
+           CARD VARIANTS (accent bars)
+        ══════════════════════════════ */
+        #past-section .scoreboard-card::before {
+            background: linear-gradient(90deg, #475569, #64748b);
+            opacity: 0.7;
+        }
+        #upcoming-section .scoreboard-card::before {
+            background: linear-gradient(90deg, var(--gold), var(--orange));
+        }
+
+        /* ══════════════════════════════
+           TOGGLE BAR
+        ══════════════════════════════ */
+        .toggle-bar {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 40px;
+            flex-wrap: wrap;
+        }
+        .toggle-btn {
+            font-family: 'Inter', sans-serif;
+            font-size: 0.70rem;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            padding: 11px 22px;
+            border-radius: 14px;
+            border: 1px solid rgba(255,255,255,0.12);
+            background: rgba(255,255,255,0.05);
+            color: var(--text-mid);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            backdrop-filter: blur(10px);
+        }
+        .toggle-btn:hover:not(:disabled) {
+            border-color: rgba(255,255,255,0.25);
+            color: var(--text-hi);
+            background: rgba(255,255,255,0.09);
+        }
+        #btn-past.active {
+            background: linear-gradient(135deg, #334155, #475569);
+            border-color: rgba(255,255,255,0.15);
+            color: #fff;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+        }
+        #btn-upcoming.active {
+            background: linear-gradient(135deg, var(--gold), var(--orange));
+            border-color: transparent;
+            color: #fff;
+            box-shadow: 0 4px 20px rgba(245,158,11,0.40);
+        }
+        .toggle-btn:disabled { opacity: 0.30; cursor: not-allowed; }
+        .btn-count {
+            padding: 1px 8px;
+            border-radius: 20px;
+            font-size: 0.60rem;
+            background: rgba(255,255,255,0.10);
+            color: var(--text-mid);
+        }
+        .toggle-btn.active .btn-count {
+            background: rgba(255,255,255,0.20);
+            color: #fff;
+        }
+
+        /* ══════════════════════════════
+           DATE GROUP
+        ══════════════════════════════ */
+        .date-group { margin-bottom: 34px; }
+        .date-group-header {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.65rem;
+            font-weight: 700;
+            color: var(--text-mid);
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            margin-bottom: 16px;
+            padding: 6px 14px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.08);
+        }
+
+        /* ══════════════════════════════
+           EMPTY / LOADING / ERROR
+        ══════════════════════════════ */
+        .no-games, .loading, .error {
+            grid-column: 1 / -1;
+            text-align: center;
+            padding: 56px 20px;
+            color: var(--text-mid);
+            font-size: 0.88rem;
+            font-weight: 500;
+            background: rgba(255,255,255,0.03);
+            border-radius: 20px;
+            border: 1px dashed rgba(255,255,255,0.10);
+        }
+        .error {
+            color: var(--red);
+            border-color: rgba(239,68,68,0.25);
+            background: rgba(239,68,68,0.05);
+        }
+
+        /* ══════════════════════════════
+           RESPONSIVE
+        ══════════════════════════════ */
+        @media (max-width: 540px) {
+            .site-header h1 { font-size: 1.6rem; letter-spacing: 3px; }
+            .dashboard { grid-template-columns: 1fr; }
+            .score-display { font-size: 2.6rem; }
+            .flag-ring { width: 58px; height: 58px; }
+            .flag { width: 74px; height: 74px; }
+        }
     </style>
 </head>
 <body>
 
-    <h1>World Cup 2026</h1>
-    <div class="current-date" id="display-date">Loading schedule...</div>
-
-    <div class="section" id="today-section">
-        <div class="section-title">📅 Jogos de Hoje</div>
-        <div class="dashboard" id="today-dashboard">
-            <div class="loading">Carregando jogos...</div>
+    <header class="site-header">
+        <span class="trophy">🏆</span>
+        <h1>World Cup <span>2026</span></h1>
+        <div class="header-sub">
+            <div class="current-date" id="display-date">Carregando...</div>
         </div>
-    </div>
+    </header>
 
-    <div class="section" id="past-section" style="display:none;">
-        <div class="section-title">📋 Resultados Anteriores</div>
-        <div id="past-dashboard"></div>
-    </div>
+    <main class="main-content">
+        <div class="section" id="today-section">
+            <div class="section-title">⚽ Jogos de Hoje</div>
+            <div class="dashboard" id="today-dashboard">
+                <div class="loading">Carregando jogos...</div>
+            </div>
+        </div>
+
+        <div class="toggle-bar" id="toggle-bar" style="display:none;">
+            <button class="toggle-btn" id="btn-past" onclick="toggleSection('past')" disabled>
+                📋 Resultados Anteriores <span class="btn-count" id="count-past">0</span>
+            </button>
+            <button class="toggle-btn" id="btn-upcoming" onclick="toggleSection('upcoming')" disabled>
+                📅 Próximos Jogos <span class="btn-count" id="count-upcoming">0</span>
+            </button>
+        </div>
+
+        <div class="section" id="past-section" style="display:none;">
+            <div class="section-title">📋 Resultados Anteriores</div>
+            <div id="past-dashboard"></div>
+        </div>
+
+        <div class="section" id="upcoming-section" style="display:none;">
+            <div class="section-title">📅 Próximos Jogos</div>
+            <div id="upcoming-dashboard"></div>
+        </div>
+    </main>
 
     <script>
         const API_URL = 'https://worldcup26.ir/get/games';
 
         // Mapeamento abrangente de países (nome em inglês vindo da API -> Código ISO oficial)
-       const countryCodes = {
-    'argentina': 'AR',
-    'algeria': 'DZ',
-    'australia': 'AU',
-    'austria': 'AT',
-    'belgium': 'BE',
-    'bosnia and herzegovina': 'BA',
-    'brazil': 'BR',
-    'cabo verde': 'CV',
-    'canada': 'CA',
-    'qatar': 'QA',
-    'colombia': 'CO',
-    'south korea': 'KR',
-    'ivory coast': 'CI',
-    'croatia': 'HR',
-    'curaçao': 'CW',
-    'egypt': 'EG',
-    'ecuador': 'EC',
-    'scotland': 'GB-SCT', // Nota: FlagsAPI costuma usar GB para o Reino Unido, ou o código específico se suportado
-    'spain': 'ES',
-    'united states': 'US',
-    'france': 'FR',
-    'ghana': 'GH',
-    'haiti': 'HT',
-    'england': 'GB-ENG',  // Nota: Se a FlagsAPI não carregar, use 'GB' como fallback geral
-    'iran': 'IR',
-    'iraq': 'IQ',
-    'japan': 'JP',
-    'jordan': 'JO',
-    'morocco': 'MA',
-    'mexico': 'MX',
-    'new zealand': 'NZ',
-    'norway': 'NO',
-    'netherlands': 'NL',
-    'panama': 'PA',
-    'paraguay': 'PY',
-    'portugal': 'PT',
-    'dr congo': 'CD',
-    'czechia': 'CZ',
-    'senegal': 'SN',
-    'south africa': 'ZA',
-    'switzerland': 'CH',
-    'sweden': 'SE',
-    'tunisia': 'TN',
-    'türkiye': 'TR',
-    'uruguay': 'UY',
-    'uzbekistan': 'UZ',
-    'germany': 'DE',
-    'saudi arabia': 'SA'
-};
+        const countryCodes = {
+            'argentina': 'AR',
+            'algeria': 'DZ',
+            'australia': 'AU',
+            'austria': 'AT',
+            'belgium': 'BE',
+            'bosnia and herzegovina': 'BA',
+            'brazil': 'BR',
+            'cabo verde': 'CV',
+            'cape verde': 'CV',
+            'canada': 'CA',
+            'qatar': 'QA',
+            'colombia': 'CO',
+            'south korea': 'KR',
+            'ivory coast': 'CI',
+            'croatia': 'HR',
+            'curaçao': 'CW',
+            'egypt': 'EG',
+            'ecuador': 'EC',
+            'spain': 'ES',
+            'united states': 'US',
+            'usa': 'US',
+            'france': 'FR',
+            'ghana': 'GH',
+            'haiti': 'HT',
+            'iran': 'IR',
+            'iraq': 'IQ',
+            'japan': 'JP',
+            'jordan': 'JO',
+            'morocco': 'MA',
+            'mexico': 'MX',
+            'new zealand': 'NZ',
+            'norway': 'NO',
+            'netherlands': 'NL',
+            'panama': 'PA',
+            'paraguay': 'PY',
+            'portugal': 'PT',
+            'dr congo': 'CD',
+            'democratic republic of the congo': 'CD',
+            'congo dr': 'CD',
+            'd.r. congo': 'CD',
+            'czechia': 'CZ',
+            'czech republic': 'CZ',
+            'senegal': 'SN',
+            'south africa': 'ZA',
+            'switzerland': 'CH',
+            'sweden': 'SE',
+            'tunisia': 'TN',
+            'türkiye': 'TR',
+            'turkey': 'TR',
+            'uruguay': 'UY',
+            'uzbekistan': 'UZ',
+            'germany': 'DE',
+            'saudi arabia': 'SA',
+            'nigeria': 'NG',
+            'venezuela': 'VE',
+            'chile': 'CL',
+            'peru': 'PE',
+            'costa rica': 'CR',
+            'honduras': 'HN',
+            'jamaica': 'JM',
+            'trinidad and tobago': 'TT',
+            'cameroon': 'CM',
+            'mali': 'ML',
+            'kenya': 'KE',
+            'angola': 'AO',
+            'tanzania': 'TZ',
+            'new caledonia': 'NC',
+            'indonesia': 'ID',
+            'thailand': 'TH',
+            'china': 'CN',
+            'china pr': 'CN',
+            'china p.r.': 'CN',
+            'philippines': 'PH',
+            'ukraine': 'UA',
+            'poland': 'PL',
+            'romania': 'RO',
+            'hungary': 'HU',
+            'serbia': 'RS',
+            'greece': 'GR',
+            'denmark': 'DK',
+            'finland': 'FI',
+            'slovakia': 'SK',
+            'slovenia': 'SI',
+            'albania': 'AL',
+            'iceland': 'IS',
+            'northern ireland': 'GB',
+            'wales': 'GB',
+        };
 
-        // Função padronizada para usar unicamente a flagsapi com estilo shiny
+        // flagcdn.com suporta subdivisões do Reino Unido (GB-ENG, GB-SCT) que flagsapi não suporta
+        const flagcdnOverrides = {
+            'england': 'gb-eng',
+            'scotland': 'gb-sct',
+            'wales': 'gb-wls',
+            'northern ireland': 'gb-nir',
+        };
+
         function getShinyFlagUrl(teamName) {
             if (!teamName || teamName === 'Unknown') return 'https://flagsapi.com/UN/shiny/64.png';
-            
             const normalized = teamName.toLowerCase().trim();
-            const code = countryCodes[normalized] || 'UN'; // Retorna 'UN' (bandeira genérica do mundo) se não listado acima
-            
+            if (flagcdnOverrides[normalized]) {
+                return `https://flagcdn.com/w80/${flagcdnOverrides[normalized]}.png`;
+            }
+            const code = countryCodes[normalized] || 'UN';
             return `https://flagsapi.com/${code.toUpperCase()}/shiny/64.png`;
         }
 
-        // Remove as aspas, colchetes, chaves e limpa o texto bruto de gols
+        const NO_GOALS_HTML = `<span style="color: #bbb; font-style: italic;">Sem gols</span>`;
+
         function parseScorers(scorersRaw) {
-            if (!scorersRaw || scorersRaw === "null" || scorersRaw.trim() === "") {
-                return `<span style="color: #bbb; font-style: italic;">No goals</span>`;
-            }
+            // Captura null/undefined JS e string "null"
+            if (scorersRaw == null || scorersRaw === 'null') return NO_GOALS_HTML;
+
+            const raw = String(scorersRaw).trim();
+            if (raw === '' || raw === '{}' || raw === '[]' || raw === 'null') return NO_GOALS_HTML;
 
             try {
-                let scorersArray = scorersRaw;
-                if (typeof scorersRaw === 'string') {
-                    const cleanString = scorersRaw.trim();
-                    if (cleanString.startsWith('[') || cleanString.startsWith('{')) {
-                        scorersArray = JSON.parse(cleanString);
-                    } else {
-                        scorersArray = cleanString.split(/,|\n/);
-                    }
+                let items;
+                if (raw.startsWith('[') || raw.startsWith('{')) {
+                    // Formato JSON array ou objeto PostgreSQL {"name 10'","name 20'"}
+                    const parsed = JSON.parse(raw);
+                    items = Array.isArray(parsed) ? parsed : Object.values(parsed);
+                } else {
+                    items = raw.split(/,\s*/);
                 }
 
-                if (Array.isArray(scorersArray)) {
-                    return scorersArray
-                        .map(scorer => `⚽ ${String(scorer).replace(/[{}"]/g, '').trim()}`)
-                        .join('<br>');
-                } else if (typeof scorersArray === 'object') {
-                    return Object.values(scorersArray)
-                        .map(scorer => `⚽ ${String(scorer).replace(/[{}"]/g, '').trim()}`)
-                        .join('<br>');
-                }
+                const lines = items
+                    .map(s => String(s).replace(/[{}"]/g, '').trim())
+                    .filter(s => s.length > 0)
+                    .map(s => `⚽ ${s}`);
 
-                return `⚽ ${String(scorersRaw).replace(/[{}"]/g, '').trim()}`;
+                return lines.length > 0 ? lines.join('<br>') : NO_GOALS_HTML;
 
             } catch (e) {
-                return `⚽ ${String(scorersRaw).replace(/[{}"]/g, '').replace(/,/g, '<br>⚽ ').trim()}`;
+                // Fallback para formato PostgreSQL {"name 10'","name 20'"} que não é JSON válido
+                const cleaned = raw.replace(/[{}"]/g, '').trim();
+                if (!cleaned) return NO_GOALS_HTML;
+                const lines = cleaned.split(',')
+                    .map(s => s.trim())
+                    .filter(s => s.length > 0)
+                    .map(s => `⚽ ${s}`);
+                return lines.length > 0 ? lines.join('<br>') : NO_GOALS_HTML;
             }
         }
 
@@ -365,8 +672,8 @@
         function buildCard(game, timeString) {
             const homeTeam = game.home_team_name_en || 'Unknown';
             const awayTeam = game.away_team_name_en || 'Unknown';
-            const homeScore = game.home_score !== undefined ? game.home_score : '-';
-            const awayScore = game.away_score !== undefined ? game.away_score : '-';
+            const homeScore = game.home_score != null ? game.home_score : '-';
+            const awayScore = game.away_score != null ? game.away_score : '-';
 
             const homeScorersHTML = parseScorers(game.home_scorers);
             const awayScorersHTML = parseScorers(game.away_scorers);
@@ -381,54 +688,107 @@
             }
 
             const brasiliaTime = convertToBrasilia(game.local_date, game.stadium_id);
-            const matchTimeHTML = brasiliaTime
-                ? `<div class="match-time"><span class="clock-icon">🕐</span>${brasiliaTime} (Brasília)</div>`
-                : '';
+            const fallbackFlag = 'https://flagsapi.com/UN/shiny/64.png';
 
             const card = document.createElement('div');
             card.className = 'scoreboard-card';
             card.innerHTML = `
-                <div>
-                    <div class="title">Grupo ${game.group || '-'} - Rodada ${game.matchday || '-'}</div>
-                    ${matchTimeHTML}
-                    <div class="match-container">
-                        <div class="team-box">
-                            <img class="flag" src="${getShinyFlagUrl(homeTeam)}" onerror="this.src='https://flagsapi.com/UN/shiny/64.png'" alt="Flag">
-                            <div class="team-name">${homeTeam}</div>
+                <div class="card-header">
+                    <div class="title">Grupo ${game.group || '-'} · Rodada ${game.matchday || '-'}</div>
+                    ${brasiliaTime ? `<div class="match-time">🕐 ${brasiliaTime} (BRT)</div>` : ''}
+                </div>
+
+                <div class="match-container">
+                    <div class="team-box">
+                        <div class="flag-ring">
+                            <img class="flag" src="${getShinyFlagUrl(homeTeam)}" onerror="this.src='${fallbackFlag}'" alt="${homeTeam}">
                         </div>
-                        <div class="score-display">${homeScore} - ${awayScore}</div>
-                        <div class="team-box">
-                            <img class="flag" src="${getShinyFlagUrl(awayTeam)}" onerror="this.src='https://flagsapi.com/UN/shiny/64.png'" alt="Flag">
-                            <div class="team-name">${awayTeam}</div>
-                        </div>
+                        <div class="team-name">${homeTeam}</div>
                     </div>
-                    <div class="scorers-container">
-                        <div class="scorers-side">${homeScorersHTML}</div>
-                        <div class="scorers-side away">${awayScorersHTML}</div>
+                    <div class="score-wrapper">
+                        <div class="score-display">${homeScore}&nbsp;–&nbsp;${awayScore}</div>
+                    </div>
+                    <div class="team-box">
+                        <div class="flag-ring">
+                            <img class="flag" src="${getShinyFlagUrl(awayTeam)}" onerror="this.src='${fallbackFlag}'" alt="${awayTeam}">
+                        </div>
+                        <div class="team-name">${awayTeam}</div>
                     </div>
                 </div>
-                <div>
-                    <div><span class="${statusClass}">${statusText}</span></div>
-                    <div class="update-time">Última sync: ${timeString}</div>
+
+                <div class="scorers-container">
+                    <div class="scorers-side">${homeScorersHTML}</div>
+                    <div class="scorers-side away">${awayScorersHTML}</div>
+                </div>
+
+                <div class="card-footer">
+                    <span class="${statusClass}">${statusText}</span>
+                    <div class="update-time">sync ${timeString}</div>
                 </div>
             `;
             return card;
         }
 
+        function toggleSection(key) {
+            const section = document.getElementById(`${key}-section`);
+            const btn = document.getElementById(`btn-${key}`);
+            const isVisible = section.style.display !== 'none';
+            section.style.display = isVisible ? 'none' : 'block';
+            btn.classList.toggle('active', !isVisible);
+        }
+
+        function renderGroupedGames(games, container, timeString, ascending) {
+            const grouped = {};
+            games.forEach(game => {
+                const datePart = String(game.local_date || '').split(' ')[0];
+                if (!datePart) return;
+                if (!grouped[datePart]) grouped[datePart] = [];
+                grouped[datePart].push(game);
+            });
+
+            const sortedDates = Object.keys(grouped).sort((a, b) => {
+                const [am, ad, ay] = a.split('/').map(Number);
+                const [bm, bd, by] = b.split('/').map(Number);
+                const diff = new Date(by, bm - 1, bd) - new Date(ay, am - 1, ad);
+                return ascending ? -diff : diff;
+            });
+
+            container.innerHTML = '';
+            sortedDates.forEach(dateStr => {
+                const [m, d, y] = dateStr.split('/').map(Number);
+                const label = new Date(y, m - 1, d).toLocaleDateString('pt-BR', {
+                    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+                });
+                const groupEl = document.createElement('div');
+                groupEl.className = 'date-group';
+                groupEl.innerHTML = `<div class="date-group-header">${label}</div>`;
+                const grid = document.createElement('div');
+                grid.className = 'dashboard';
+                grouped[dateStr].forEach(game => grid.appendChild(buildCard(game, timeString)));
+                groupEl.appendChild(grid);
+                container.appendChild(groupEl);
+            });
+        }
+
         async function fetchDailyScores() {
-            const todayDashboard = document.getElementById('today-dashboard');
-            const pastDashboard = document.getElementById('past-dashboard');
-            const pastSection = document.getElementById('past-section');
-            const displayDate = document.getElementById('display-date');
+            const todayDashboard    = document.getElementById('today-dashboard');
+            const pastDashboard     = document.getElementById('past-dashboard');
+            const upcomingDashboard = document.getElementById('upcoming-dashboard');
+            const toggleBar         = document.getElementById('toggle-bar');
+            const btnPast           = document.getElementById('btn-past');
+            const btnUpcoming       = document.getElementById('btn-upcoming');
+            const displayDate       = document.getElementById('display-date');
 
             const today = new Date();
             const todayDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
             const month = String(today.getMonth() + 1).padStart(2, '0');
-            const day = String(today.getDate()).padStart(2, '0');
-            const year = today.getFullYear();
+            const day   = String(today.getDate()).padStart(2, '0');
+            const year  = today.getFullYear();
             const usTodayStr = `${month}/${day}/${year}`;
 
-            displayDate.innerText = `${day}/${month}/${year}`;
+            displayDate.innerText = today.toLocaleDateString('pt-BR', {
+                weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+            }).toUpperCase();
 
             try {
                 const response = await fetch(API_URL);
@@ -443,59 +803,42 @@
                 );
 
                 const pastGames = games.filter(game => {
-                    const datePart = String(game.local_date || '').trim().split(' ')[0];
-                    if (!datePart) return false;
-                    const [m, d, y] = datePart.split('/').map(Number);
+                    const dp = String(game.local_date || '').trim().split(' ')[0];
+                    if (!dp) return false;
+                    const [m, d, y] = dp.split('/').map(Number);
                     return new Date(y, m - 1, d) < todayDate;
+                });
+
+                const upcomingGames = games.filter(game => {
+                    const dp = String(game.local_date || '').trim().split(' ')[0];
+                    if (!dp) return false;
+                    const [m, d, y] = dp.split('/').map(Number);
+                    return new Date(y, m - 1, d) > todayDate;
                 });
 
                 // --- Today ---
                 todayDashboard.innerHTML = '';
                 if (todaysGames.length === 0) {
-                    todayDashboard.innerHTML = `<div class="no-games">Nenhuma partida hoje (${day}/${month}/${year}).</div>`;
+                    todayDashboard.innerHTML = `<div class="no-games">Nenhuma partida hoje.</div>`;
                 } else {
                     todaysGames.forEach(game => todayDashboard.appendChild(buildCard(game, timeString)));
                 }
 
-                // --- Past ---
-                if (pastGames.length === 0) {
-                    pastSection.style.display = 'none';
-                    return;
-                }
+                // --- Toggle bar ---
+                const hasPast     = pastGames.length > 0;
+                const hasUpcoming = upcomingGames.length > 0;
+                toggleBar.style.display = (hasPast || hasUpcoming) ? 'flex' : 'none';
 
-                const grouped = {};
-                pastGames.forEach(game => {
-                    const datePart = String(game.local_date || '').split(' ')[0];
-                    if (!grouped[datePart]) grouped[datePart] = [];
-                    grouped[datePart].push(game);
-                });
+                document.getElementById('count-past').textContent     = pastGames.length;
+                document.getElementById('count-upcoming').textContent = upcomingGames.length;
+                btnPast.disabled     = !hasPast;
+                btnUpcoming.disabled = !hasUpcoming;
 
-                const sortedDates = Object.keys(grouped).sort((a, b) => {
-                    const [am, ad, ay] = a.split('/').map(Number);
-                    const [bm, bd, by] = b.split('/').map(Number);
-                    return new Date(by, bm - 1, bd) - new Date(ay, am - 1, ad);
-                });
+                // --- Past (rendered once, hidden by default) ---
+                if (hasPast) renderGroupedGames(pastGames, pastDashboard, timeString, false);
 
-                pastDashboard.innerHTML = '';
-                sortedDates.forEach(dateStr => {
-                    const [m, d, y] = dateStr.split('/').map(Number);
-                    const label = new Date(y, m - 1, d).toLocaleDateString('pt-BR', {
-                        weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
-                    });
-
-                    const groupEl = document.createElement('div');
-                    groupEl.className = 'date-group';
-                    groupEl.innerHTML = `<div class="date-group-header">${label}</div>`;
-
-                    const grid = document.createElement('div');
-                    grid.className = 'dashboard';
-                    grouped[dateStr].forEach(game => grid.appendChild(buildCard(game, timeString)));
-
-                    groupEl.appendChild(grid);
-                    pastDashboard.appendChild(groupEl);
-                });
-
-                pastSection.style.display = 'block';
+                // --- Upcoming (rendered once, hidden by default) ---
+                if (hasUpcoming) renderGroupedGames(upcomingGames, upcomingDashboard, timeString, true);
 
             } catch (error) {
                 console.error(error);
