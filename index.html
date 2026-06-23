@@ -453,6 +453,10 @@
             animation: fadeUp 0.38s ease both;
             position: relative;
         }
+        .table-scroll-wrap {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
         .group-table::before {
             content: '';
             position: absolute;
@@ -476,9 +480,10 @@
             width: 100%;
             border-collapse: collapse;
             font-size: 0.78rem;
+            min-width: 420px;
         }
         .standings-table thead th {
-            padding: 7px 10px;
+            padding: 7px 8px;
             text-align: center;
             font-size: 0.58rem;
             font-weight: 700;
@@ -495,7 +500,7 @@
         .standings-table tbody tr:last-child { border-bottom: none; }
         .standings-table tbody tr:hover { background: rgba(255,255,255,0.04); }
         .standings-table tbody td {
-            padding: 9px 10px;
+            padding: 9px 8px;
             text-align: center;
             color: var(--text-mid);
             white-space: nowrap;
@@ -968,23 +973,25 @@
                 card.className = 'group-table';
                 card.innerHTML = `
                     <div class="group-table-header">Grupo ${groupName}</div>
-                    <table class="standings-table">
-                        <thead>
-                            <tr>
-                                <th>#</th>
-                                <th class="col-team">Seleção</th>
-                                <th title="Jogos">J</th>
-                                <th title="Vitórias">V</th>
-                                <th title="Empates">E</th>
-                                <th title="Derrotas">D</th>
-                                <th title="Gols Pró">GP</th>
-                                <th title="Gols Contra">GC</th>
-                                <th title="Saldo de Gols">SG</th>
-                                <th title="Pontos">Pts</th>
-                            </tr>
-                        </thead>
-                        <tbody>${rows}</tbody>
-                    </table>`;
+                    <div class="table-scroll-wrap">
+                        <table class="standings-table">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th class="col-team">Seleção</th>
+                                    <th title="Jogos">J</th>
+                                    <th title="Vitórias">V</th>
+                                    <th title="Empates">E</th>
+                                    <th title="Derrotas">D</th>
+                                    <th title="Gols Pró">GP</th>
+                                    <th title="Gols Contra">GC</th>
+                                    <th title="Saldo de Gols">SG</th>
+                                    <th title="Pontos">Pts</th>
+                                </tr>
+                            </thead>
+                            <tbody>${rows}</tbody>
+                        </table>
+                    </div>`;
                 grid.appendChild(card);
             });
 
