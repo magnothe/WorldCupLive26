@@ -143,6 +143,18 @@
             background-color: #ffebee;
         }
 
+        .match-time {
+            margin-top: 6px;
+            font-size: 0.85rem;
+            color: #555;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
+        .match-time .clock-icon {
+            margin-right: 4px;
+        }
+
         .update-time {
             margin-top: 15px;
             font-size: 0.7rem;
@@ -272,6 +284,43 @@
             }
         }
 
+        // UTC offsets in June (DST active in North America). Brazil has no DST (UTC-3 year-round).
+        // Stadium IDs from API: 1-3 Mexico (Central), 4-6 USA Central, 7-12 USA/Canada Eastern, 13-16 USA/Canada Western
+        const stadiumOffsets = {
+            1: -5, 2: -5, 3: -5,   // Mexico City, Guadalajara, Monterrey → CDT (UTC-5)
+            4: -5, 5: -5, 6: -5,   // Dallas, Houston, Kansas City → CDT (UTC-5)
+            7: -4, 8: -4, 9: -4,   // Atlanta, Miami, Boston → EDT (UTC-4)
+            10: -4, 11: -4, 12: -4, // Philadelphia, New York/NJ, Toronto → EDT (UTC-4)
+            13: -7, 14: -7,         // Vancouver, Seattle → PDT (UTC-7)
+            15: -7, 16: -7          // San Francisco, Los Angeles → PDT (UTC-7)
+        };
+
+        const BRASILIA_OFFSET = -3;
+
+        function convertToBrasilia(localDateStr, stadiumId) {
+            if (!localDateStr) return null;
+            const parts = String(localDateStr).trim().split(' ');
+            if (parts.length < 2) return null;
+
+            const [datePart, timePart] = parts;
+            const [month, day, year] = datePart.split('/').map(Number);
+            const [localHours, localMinutes] = timePart.split(':').map(Number);
+
+            const venueOffset = stadiumOffsets[Number(stadiumId)] ?? -5;
+
+            // Convert: UTC = local - venueOffset; Brasília = UTC + BRASILIA_OFFSET
+            let brasiliaHours = localHours - venueOffset + BRASILIA_OFFSET;
+            const nextDay = brasiliaHours >= 24;
+            const prevDay = brasiliaHours < 0;
+            if (nextDay) brasiliaHours -= 24;
+            if (prevDay) brasiliaHours += 24;
+
+            const h = String(brasiliaHours).padStart(2, '0');
+            const m = String(localMinutes).padStart(2, '0');
+            const suffix = nextDay ? ' (+1d)' : prevDay ? ' (-1d)' : '';
+            return `${h}:${m}${suffix}`;
+        }
+
         async function fetchDailyScores() {
             const dashboard = document.getElementById('dashboard');
             const displayDate = document.getElementById('display-date');
@@ -322,11 +371,17 @@
                         statusClass = "status live";
                     }
 
+                    const brasiliaTime = convertToBrasilia(game.local_date, game.stadium_id);
+                    const matchTimeHTML = brasiliaTime
+                        ? `<div class="match-time"><span class="clock-icon">🕐</span>${brasiliaTime} (Brasília)</div>`
+                        : '';
+
                     const card = document.createElement('div');
                     card.className = 'scoreboard-card';
                     card.innerHTML = `
                         <div>
                             <div class="title">Group ${game.group || '-'} - Matchday ${game.matchday || '-'}</div>
+                            ${matchTimeHTML}
                             <div class="match-container">
                                 <div class="team-box">
                                     <img class="flag" src="${getShinyFlagUrl(homeTeam)}" onerror="this.src='https://flagsapi.com/UN/shiny/64.png'" alt="Flag">
