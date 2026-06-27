@@ -285,6 +285,38 @@
         .scorers-side { flex: 1; color: var(--text-mid); word-break: break-word; }
         .scorers-side.away { text-align: right; }
 
+        /* ── FIFA code ── */
+        .team-code {
+            font-size: 0.60rem;
+            font-weight: 800;
+            letter-spacing: 2px;
+            color: var(--text-lo);
+            text-transform: uppercase;
+        }
+
+        /* ── Stadium info ── */
+        .card-stadium {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            font-size: 0.62rem;
+            color: var(--text-lo);
+            background: rgba(255,255,255,0.025);
+            border: 1px solid rgba(255,255,255,0.05);
+            border-radius: 8px;
+            padding: 6px 12px;
+            text-align: center;
+            flex-wrap: wrap;
+        }
+        .card-stadium .stadium-sep {
+            opacity: 0.3;
+        }
+        .card-stadium .stadium-cap {
+            color: var(--gold);
+            font-weight: 600;
+        }
+
         /* ── Card footer ── */
         .card-footer {
             display: flex;
@@ -764,6 +796,89 @@
         }
 
         /* ══════════════════════════════
+           KNOCKOUT / MATA-MATA
+        ══════════════════════════════ */
+        #btn-knockout.active {
+            background: linear-gradient(135deg, var(--gold), var(--orange));
+            border-color: transparent;
+            color: #fff;
+            box-shadow: 0 4px 20px rgba(245,158,11,0.45);
+        }
+
+        .round-group { margin-bottom: 36px; }
+
+        .round-header {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.68rem;
+            font-weight: 800;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            color: var(--text-hi);
+            margin-bottom: 18px;
+            padding: 8px 18px;
+            border-radius: 10px;
+            border: 1px solid rgba(255,255,255,0.10);
+            background: rgba(255,255,255,0.05);
+        }
+        .round-header.r32   { border-color: rgba(59,130,246,0.35);  color: #60a5fa; }
+        .round-header.r16   { border-color: rgba(139,92,246,0.35);  color: #a78bfa; }
+        .round-header.qf    { border-color: rgba(249,115,22,0.35);  color: var(--orange); }
+        .round-header.sf    { border-color: rgba(239,68,68,0.35);   color: #f87171; }
+        .round-header.third { border-color: rgba(148,163,184,0.35); color: #94a3b8; }
+        .round-header.final {
+            border-color: rgba(245,158,11,0.5);
+            color: var(--gold);
+            font-size: 0.80rem;
+            letter-spacing: 4px;
+            box-shadow: 0 0 24px rgba(245,158,11,0.15);
+        }
+
+        /* Accent bar color per round */
+        .round-r32   .scoreboard-card::before { background: linear-gradient(90deg, #3b82f6, #6366f1); }
+        .round-r16   .scoreboard-card::before { background: linear-gradient(90deg, #8b5cf6, #ec4899); }
+        .round-qf    .scoreboard-card::before { background: linear-gradient(90deg, var(--orange), var(--red)); }
+        .round-sf    .scoreboard-card::before { background: linear-gradient(90deg, var(--red), #be185d); }
+        .round-third .scoreboard-card::before { background: linear-gradient(90deg, #475569, #64748b); opacity: 0.7; }
+        .round-final .scoreboard-card::before {
+            background: linear-gradient(90deg, var(--gold), var(--orange), var(--gold));
+            height: 3px;
+            box-shadow: 0 0 12px rgba(245,158,11,0.5);
+        }
+        .round-final .scoreboard-card {
+            border-color: rgba(245,158,11,0.25);
+            box-shadow: 0 0 40px rgba(245,158,11,0.08);
+        }
+        .round-final .score-display {
+            font-size: 4rem;
+            filter: drop-shadow(0 2px 16px rgba(245,158,11,0.40));
+        }
+
+        /* TBD team placeholder */
+        .team-tbd {
+            font-size: 0.72rem;
+            font-weight: 600;
+            color: var(--text-lo);
+            font-style: italic;
+            text-align: center;
+            padding: 0 4px;
+            line-height: 1.3;
+        }
+        .flag-tbd {
+            width: 80px;
+            height: 54px;
+            border-radius: 10px;
+            background: rgba(255,255,255,0.04);
+            border: 1px dashed rgba(255,255,255,0.10);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.4rem;
+            color: var(--text-lo);
+        }
+
+        /* ══════════════════════════════
            RESPONSIVE
         ══════════════════════════════ */
         @media (max-width: 540px) {
@@ -808,6 +923,9 @@
             <button class="toggle-btn" id="btn-scorers" onclick="toggleSection('scorers')">
                 ⚽ Artilheiros
             </button>
+            <button class="toggle-btn" id="btn-knockout" onclick="toggleSection('knockout')">
+                🏆 Mata-Mata
+            </button>
         </div>
 
         <div class="section" id="past-section" style="display:none;">
@@ -818,6 +936,11 @@
         <div class="section" id="upcoming-section" style="display:none;">
             <div class="section-title">📅 Próximos Jogos</div>
             <div id="upcoming-dashboard"></div>
+        </div>
+
+        <div class="section" id="knockout-section" style="display:none;">
+            <div class="section-title">🏆 Mata-Mata</div>
+            <div id="knockout-container"></div>
         </div>
 
         <div class="section" id="scorers-section" style="display:none;">
@@ -838,7 +961,13 @@
     </main>
 
     <script>
-        const API_URL = 'https://worldcup26.ir/get/games';
+        const API_URL      = 'https://worldcup26.ir/get/games';
+        const TEAMS_URL    = 'https://worldcup26.ir/get/teams';
+        const STADIUMS_URL = 'https://worldcup26.ir/get/stadiums';
+
+        // Populated on first fetch — keyed by lowercase English name
+        let teamByName  = {};   // name_en.lower -> team object
+        let stadiumById = {};   // id -> stadium object
 
         // Mapeamento abrangente de países (nome em inglês vindo da API -> Código ISO oficial)
         const countryCodes = {
@@ -939,25 +1068,35 @@
             'northern ireland': 'gb-nir',
         };
 
+        function getTeamData(teamName) {
+            if (!teamName) return null;
+            return teamByName[teamName.toLowerCase().trim()] || null;
+        }
+
         function getShinyFlagUrl(teamName) {
+            const t = getTeamData(teamName);
+            if (t && t.flag) return t.flag; // flagcdn.com/w80/ direto da API
             if (!teamName || teamName === 'Unknown') return 'https://flagsapi.com/UN/shiny/64.png';
             const normalized = teamName.toLowerCase().trim();
-            if (flagcdnOverrides[normalized]) {
-                return `https://flagcdn.com/w80/${flagcdnOverrides[normalized]}.png`;
-            }
+            if (flagcdnOverrides[normalized]) return `https://flagcdn.com/w80/${flagcdnOverrides[normalized]}.png`;
             const code = countryCodes[normalized] || 'UN';
             return `https://flagsapi.com/${code.toUpperCase()}/shiny/64.png`;
         }
 
         function getFlatFlagUrl(teamName) {
+            const t = getTeamData(teamName);
+            if (t && t.flag) return t.flag.replace('/w80/', '/w40/');
             if (!teamName || teamName === 'Unknown') return 'https://flagcdn.com/w40/un.png';
             const normalized = teamName.toLowerCase().trim();
-            if (flagcdnOverrides[normalized]) {
-                return `https://flagcdn.com/w40/${flagcdnOverrides[normalized]}.png`;
-            }
+            if (flagcdnOverrides[normalized]) return `https://flagcdn.com/w40/${flagcdnOverrides[normalized]}.png`;
             const code = countryCodes[normalized];
             if (!code) return 'https://flagcdn.com/w40/un.png';
             return `https://flagcdn.com/w40/${code.toLowerCase()}.png`;
+        }
+
+        function getTeamCode(teamName) {
+            const t = getTeamData(teamName);
+            return t ? t.fifa_code : '';
         }
 
         const NO_GOALS_HTML = `<span style="color: #bbb; font-style: italic;">Sem gols</span>`;
@@ -1035,9 +1174,25 @@
             return `${h}:${m}${suffix}`;
         }
 
+        const ROUND_META = {
+            r32:   { label: 'Round of 32',      emoji: '⚔️',  cssClass: 'r32'   },
+            r16:   { label: 'Oitavas de Final',  emoji: '⚔️',  cssClass: 'r16'   },
+            qf:    { label: 'Quartas de Final',  emoji: '🔥',  cssClass: 'qf'    },
+            sf:    { label: 'Semifinal',         emoji: '⚡',  cssClass: 'sf'    },
+            third: { label: '3º Lugar',          emoji: '🥉',  cssClass: 'third' },
+            final: { label: 'FINAL',             emoji: '🏆',  cssClass: 'final' },
+        };
+        const ROUND_ORDER = ['r32','r16','qf','sf','third','final'];
+
         function buildCard(game, timeString) {
-            const homeTeam = game.home_team_name_en || 'Unknown';
-            const awayTeam = game.away_team_name_en || 'Unknown';
+            const isKnockout = game.type && game.type !== 'group';
+            const rawHome = game.home_team_name_en;
+            const rawAway = game.away_team_name_en;
+            // "known" = time tem nome definido (não é TBD/null)
+            const homeKnown = !!(rawHome && rawHome !== 'null');
+            const awayKnown = !!(rawAway && rawAway !== 'null');
+            const homeTeam = homeKnown ? rawHome : '';
+            const awayTeam = awayKnown ? rawAway : '';
             const homeScore = (game.home_score != null && game.home_score !== 'null') ? game.home_score : 0;
             const awayScore = (game.away_score != null && game.away_score !== 'null') ? game.away_score : 0;
 
@@ -1047,45 +1202,62 @@
             const timeElapsed = String(game.time_elapsed || '').toLowerCase();
             let statusText = game.finished === "TRUE" ? "Finalizado" : "Agendado";
             let statusClass = "status";
-
-            if (timeElapsed === "live") {
-                statusText = "🔴 AO VIVO";
-                statusClass = "status live";
-            }
+            if (timeElapsed === "live") { statusText = "🔴 AO VIVO"; statusClass = "status live"; }
 
             const brasiliaTime = convertToBrasilia(game.local_date, game.stadium_id);
-            const fallbackFlag = 'https://flagsapi.com/UN/shiny/64.png';
+            const fallbackFlag = 'https://flagcdn.com/w80/un.png';
+
+            const homeCode = getTeamCode(homeTeam);
+            const awayCode = getTeamCode(awayTeam);
+
+            const stadium = stadiumById[String(game.stadium_id)] || null;
+            const stadiumHTML = stadium ? `
+                <div class="card-stadium">
+                    🏟️ <strong>${stadium.name_en}</strong>
+                    <span class="stadium-sep">·</span> ${stadium.city_en}
+                    <span class="stadium-sep">·</span> <span class="stadium-cap">${stadium.capacity.toLocaleString()} lugares</span>
+                </div>` : '';
+
+            // Card title: for knockout show round name; for group show group+round
+            const roundMeta = ROUND_META[game.type];
+            const cardTitle = isKnockout && roundMeta
+                ? `${roundMeta.emoji} ${roundMeta.label}`
+                : `Grupo ${game.group || '-'} · Rodada ${game.matchday || '-'}`;
+
+            // Flag/team blocks — support TBD teams
+            function teamBlock(name, label, isKnown, code) {
+                const flag = isKnown
+                    ? `<div class="flag-ring"><img class="flag" src="${getShinyFlagUrl(name)}" onerror="this.src='${fallbackFlag}'" alt="${name}"></div>`
+                    : `<div class="flag-tbd">?</div>`;
+                const displayName = (isKnown ? name : (label || name));
+                const nameEl = isKnown
+                    ? `<div class="team-name">${displayName}</div>${code ? `<div class="team-code">${code}</div>` : ''}`
+                    : `<div class="team-tbd">${displayName}</div>`;
+                return `<div class="team-box">${flag}${nameEl}</div>`;
+            }
 
             const card = document.createElement('div');
             card.className = 'scoreboard-card';
             card.innerHTML = `
                 <div class="card-header">
-                    <div class="title">Grupo ${game.group || '-'} · Rodada ${game.matchday || '-'}</div>
+                    <div class="title">${cardTitle}</div>
                     ${brasiliaTime ? `<div class="match-time">🕐 ${brasiliaTime} (BRT)</div>` : ''}
                 </div>
 
                 <div class="match-container">
-                    <div class="team-box">
-                        <div class="flag-ring">
-                            <img class="flag" src="${getShinyFlagUrl(homeTeam)}" onerror="this.src='${fallbackFlag}'" alt="${homeTeam}">
-                        </div>
-                        <div class="team-name">${homeTeam}</div>
-                    </div>
+                    ${teamBlock(homeTeam, game.home_team_label, !!homeKnown, homeCode)}
                     <div class="score-wrapper">
                         <div class="score-display">${homeScore}&nbsp;–&nbsp;${awayScore}</div>
                     </div>
-                    <div class="team-box">
-                        <div class="flag-ring">
-                            <img class="flag" src="${getShinyFlagUrl(awayTeam)}" onerror="this.src='${fallbackFlag}'" alt="${awayTeam}">
-                        </div>
-                        <div class="team-name">${awayTeam}</div>
-                    </div>
+                    ${teamBlock(awayTeam, game.away_team_label, !!awayKnown, awayCode)}
                 </div>
 
                 <div class="scorers-container">
                     <div class="scorers-side">${homeScorersHTML}</div>
                     <div class="scorers-side away">${awayScorersHTML}</div>
                 </div>
+
+                ${stadiumHTML}
 
                 <div class="card-footer">
                     <span class="${statusClass}">${statusText}</span>
@@ -1258,6 +1430,44 @@
                 </table>`;
         }
 
+        function renderKnockout(games, timeString) {
+            const container = document.getElementById('knockout-container');
+            const koGames = games.filter(g => g.type && g.type !== 'group');
+
+            if (koGames.length === 0) {
+                container.innerHTML = '<div class="no-games">Nenhum jogo do mata-mata ainda.</div>';
+                return;
+            }
+
+            // Group by round type in defined order
+            const byRound = {};
+            koGames.forEach(g => {
+                if (!byRound[g.type]) byRound[g.type] = [];
+                byRound[g.type].push(g);
+            });
+
+            container.innerHTML = '';
+
+            ROUND_ORDER.filter(r => byRound[r]).forEach(roundKey => {
+                const meta = ROUND_META[roundKey];
+                const roundGames = byRound[roundKey];
+
+                const section = document.createElement('div');
+                section.className = `round-group round-${meta.cssClass}`;
+
+                const header = document.createElement('div');
+                header.className = `round-header ${meta.cssClass}`;
+                header.textContent = `${meta.emoji}  ${meta.label}`;
+                section.appendChild(header);
+
+                const grid = document.createElement('div');
+                grid.className = 'dashboard';
+                roundGames.forEach(g => grid.appendChild(buildCard(g, timeString)));
+                section.appendChild(grid);
+                container.appendChild(section);
+            });
+        }
+
         function computeStandings(games) {
             const groups = {};
 
@@ -1326,6 +1536,7 @@
                     const gdStr = team.gd > 0 ? `+${team.gd}` : String(team.gd);
                     const gdClass = team.gd > 0 ? 'pos' : team.gd < 0 ? 'neg' : '';
                     const flagUrl = getFlatFlagUrl(team.name);
+                    const code = getTeamCode(team.name);
                     return `
                         <tr>
                             <td class="st-pos ${posClass}">${pos}</td>
@@ -1333,6 +1544,7 @@
                                 <div class="st-team-cell">
                                     <img class="st-flag" src="${flagUrl}" onerror="this.src='https://flagcdn.com/w40/un.png'" alt="${team.name}">
                                     <span class="st-name">${team.name}</span>
+                                    ${code ? `<span style="font-size:0.58rem;color:var(--text-lo);font-weight:700;letter-spacing:1px;">${code}</span>` : ''}
                                 </div>
                             </td>
                             <td class="st-pts">${team.pts}</td>
@@ -1430,10 +1642,27 @@
             }).toUpperCase();
 
             try {
-                const response = await fetch(API_URL);
-                if (!response.ok) throw new Error('API did not respond.');
+                const [gamesRes, teamsRes, stadiumsRes] = await Promise.all([
+                    fetch(API_URL),
+                    fetch(TEAMS_URL),
+                    fetch(STADIUMS_URL)
+                ]);
+                if (!gamesRes.ok) throw new Error('API did not respond.');
 
-                const data = await response.json();
+                const data   = await gamesRes.json();
+                const teams  = await teamsRes.json().catch(() => []);
+                const stadiums = await stadiumsRes.json().catch(() => []);
+
+                // Build lookup maps (only once per fetch cycle)
+                teamByName  = {};
+                stadiumById = {};
+                (Array.isArray(teams) ? teams : []).forEach(t => {
+                    if (t.name_en) teamByName[t.name_en.toLowerCase().trim()] = t;
+                });
+                (Array.isArray(stadiums) ? stadiums : []).forEach(s => {
+                    if (s.id) stadiumById[String(s.id)] = s;
+                });
+
                 const games = Array.isArray(data) ? data : data.games || [];
                 const timeString = new Date().toLocaleTimeString('pt-BR', { hour12: false });
 
@@ -1478,6 +1707,9 @@
 
                 // --- Upcoming (rendered once, hidden by default) ---
                 if (hasUpcoming) renderGroupedGames(upcomingGames, upcomingDashboard, timeString, true);
+
+                // --- Knockout ---
+                renderKnockout(games, timeString);
 
                 // --- Standings ---
                 renderStandings(games);
