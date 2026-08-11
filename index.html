@@ -3,78 +3,71 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Brasileirão - Séries A, B, C e D</title>
+    <title>FootballLive — Brasileirão, Premier League, La Liga, Serie A, Bundesliga e Ligue 1</title>
+    <meta name="description" content="Jogos ao vivo, resultados, classificação, artilharia e cartões do Brasileirão Séries A, B e C e das cinco grandes ligas da Europa.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Bebas+Neue&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
 
-    <div id="goal-notif-wrap" class="goal-notif-wrap"></div>
+    <div id="notif-wrap" class="notif-wrap"></div>
 
-    <header class="site-header">
-        <span class="trophy">🏆</span>
-        <h1>Brasilei<span>rão</span></h1>
-        <div class="header-sub">
-            <div class="current-date" id="display-date">Carregando...</div>
+    <header class="masthead">
+        <div class="shell mast-inner">
+            <h1 class="wordmark">Football<em>Live</em></h1>
+            <p class="mast-meta">
+                <span id="today-label">—</span>
+                <span class="sep"></span>
+                <span id="sync-label">sincronizando</span>
+            </p>
         </div>
     </header>
 
-    <main class="main-content">
+    <nav class="league-bar" aria-label="Selecionar campeonato">
+        <div class="shell league-bar-inner" id="league-nav"></div>
+    </nav>
 
-        <!-- Seletor de série: A · B · C · D -->
-        <nav class="serie-bar" id="serie-bar" aria-label="Selecionar série"></nav>
+    <main class="shell">
 
-        <div class="section" id="today-section">
-            <div class="section-title">⚽ Jogos de Hoje <span class="section-serie" id="today-serie-label"></span></div>
-            <div class="dashboard" id="today-dashboard">
-                <div class="loading">Carregando jogos...</div>
-            </div>
+        <div class="lead">
+            <h2 class="lead-title" id="lead-title">—</h2>
+            <p class="lead-sub" id="lead-sub"></p>
         </div>
 
-        <div class="toggle-bar" id="toggle-bar" style="display:none;">
-            <button class="toggle-btn" id="btn-past" type="button" disabled>
-                📋 Resultados Anteriores <span class="btn-count" id="count-past">0</span>
-            </button>
-            <button class="toggle-btn" id="btn-upcoming" type="button" disabled>
-                📅 Próximos Jogos <span class="btn-count" id="count-upcoming">0</span>
-            </button>
-            <button class="toggle-btn" id="btn-standings" type="button">
-                📊 Classificação
-            </button>
-            <button class="toggle-btn" id="btn-scorers" type="button">
-                ⚽ Artilheiros
-            </button>
-        </div>
+        <nav class="tabs" id="tabs" aria-label="Seções"></nav>
 
-        <div class="section" id="past-section" style="display:none;">
-            <div class="section-title">📋 Resultados Anteriores</div>
-            <div id="past-dashboard"></div>
-        </div>
+        <section class="view" id="view-today"     data-tab="today"></section>
+        <section class="view" id="view-past"      data-tab="past" hidden></section>
+        <section class="view" id="view-upcoming"  data-tab="upcoming" hidden></section>
 
-        <div class="section" id="upcoming-section" style="display:none;">
-            <div class="section-title">📅 Próximos Jogos</div>
-            <div id="upcoming-dashboard"></div>
-        </div>
+        <section class="view" id="view-standings" data-tab="standings" hidden>
+            <div id="standings-container"></div>
+            <div class="legend" id="standings-legend"></div>
+        </section>
 
-        <div class="section" id="scorers-section" style="display:none;">
-            <div class="section-title">⚽ Artilheiros</div>
-            <div class="scorers-card">
+        <section class="view" id="view-scorers" data-tab="scorers" hidden>
+            <div class="panel narrow">
+                <h3 class="panel-head">Artilharia</h3>
                 <div id="scorers-container"></div>
             </div>
-        </div>
+        </section>
 
-        <div class="section" id="standings-section" style="display:none;">
-            <div class="section-title">📊 Classificação</div>
-            <div id="standings-container"></div>
-            <div class="standings-legend" id="standings-legend"></div>
-        </div>
+        <section class="view" id="view-cards" data-tab="cards" hidden>
+            <div class="panel narrow">
+                <h3 class="panel-head">Cartões</h3>
+                <div id="cards-container"></div>
+            </div>
+            <p class="note">Somados a partir dos lances de cada partida publicados pela ESPN. A coluna V inclui vermelho direto e segundo amarelo.</p>
+        </section>
 
     </main>
 
     <footer class="site-footer">
-        Dados: <strong>ESPN</strong> (placares, tabelas e escudos) · sem chave e sem limite de requisições
+        <div class="shell">
+            Dados de <strong>ESPN</strong> — placares, escalações, cartões, tabelas e escudos. Sem chave de API.
+        </div>
     </footer>
 
     <script src="js/api.js"></script>

@@ -1,5 +1,5 @@
 /* ══════════════════════════════════════════════
-   ui.js — Renderização (cards, tabelas, notificações)
+   ui.js — Renderização (partidas, tabelas, notificações)
    Depende de: api.js
    ══════════════════════════════════════════════ */
 
@@ -12,109 +12,215 @@ function esc(value) {
 const CREST_ONERROR = `this.onerror=null;this.src='${CREST_FALLBACK}'`;
 
 /* ══════════════════════════════
-   Card de partida
+   Ícones (SVG inline — nada de emoji)
 ══════════════════════════════ */
 
-function goalsSideHTML(game, teamId) {
+const ICON = {
+    ball: `<svg class="ico" viewBox="0 0 16 16" aria-hidden="true">
+             <circle cx="8" cy="8" r="6.4" fill="none" stroke="currentColor" stroke-width="1.5"/>
+             <path d="M8 4.2 10.6 6.1 9.6 9.2H6.4L5.4 6.1z" fill="currentColor"/>
+           </svg>`,
+    card: `<svg class="ico" viewBox="0 0 16 16" aria-hidden="true">
+             <rect x="4.5" y="2.5" width="7" height="11" rx="1.2" fill="currentColor"/>
+           </svg>`,
+    doubleCard: `<svg class="ico" viewBox="0 0 16 16" aria-hidden="true">
+             <rect x="2" y="3" width="6" height="10" rx="1.1" fill="var(--yellow)"/>
+             <rect x="8" y="3" width="6" height="10" rx="1.1" fill="var(--red)"/>
+           </svg>`,
+    sub: `<svg class="ico" viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M2.5 5.5h8.5m0 0L8.6 3.2M11 5.5 8.6 7.8" fill="none" stroke="var(--green)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M13.5 10.5H5m0 0 2.4-2.3M5 10.5l2.4 2.3" fill="none" stroke="var(--red)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>`,
+    chevron: `<svg class="chev" viewBox="0 0 16 16" aria-hidden="true">
+                <path d="M4 6.5 8 10.5l4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>`,
+};
+
+/* ══════════════════════════════
+   Partida — cabeçalho, linhas de time, resumo
+══════════════════════════════ */
+
+function scoreCellHTML(game, side) {
+    if (game.state === 'pre') return `<span class="t-score pending">–</span>`;
+    const value = side.score != null ? side.score : 0;
+    const pens  = side.pens != null ? `<span class="t-pens">(${side.pens})</span>` : '';
+    return `<span class="t-score">${value}</span>${pens}`;
+}
+
+/** Gols do time, em uma linha curta sob o nome. */
+function goalLineHTML(game, teamId) {
     const list = game.goals.filter(g => g.teamId === teamId);
-    if (!list.length) {
-        return game.state === 'pre'
-            ? '<span class="no-goals">—</span>'
-            : '<span class="no-goals">Sem gols</span>';
-    }
-    return list.map(g => {
-        const tags = [g.penalty ? 'pên' : '', g.ownGoal ? 'gc' : ''].filter(Boolean).join(', ');
-        return `⚽ ${esc(g.player)} ${esc(g.minute)}` +
-               (tags ? ` <span class="goal-tag">(${tags})</span>` : '');
-    }).join('<br>');
+    if (!list.length) return '';
+    const names = list.map(g => {
+        const tag = g.ownGoal ? ' (gc)' : g.penalty ? ' (p)' : '';
+        return `${esc(g.player)}${esc(tag)} <span class="min">${esc(g.minute)}</span>`;
+    }).join('<span class="dot">·</span>');
+    return `<div class="t-goals">${names}</div>`;
 }
 
-function teamBlockHTML(side) {
+function teamRowHTML(game, side, other) {
+    const decided = game.state === 'post' && side.score != null && other.score != null;
+    const cls = [
+        't-row',
+        decided && side.score > other.score ? 'won'  : '',
+        decided && side.score < other.score ? 'lost' : '',
+    ].filter(Boolean).join(' ');
+
     return `
-        <div class="team-box">
-            <div class="crest-ring">
-                <img class="crest" src="${esc(side.crest)}" onerror="${CREST_ONERROR}" alt="${esc(side.name)}">
+        <div class="${cls}">
+            <img class="t-badge" src="${esc(side.crest)}" onerror="${CREST_ONERROR}" alt="">
+            <div class="t-main">
+                <div class="t-name">${esc(side.name)}</div>
+                ${goalLineHTML(game, side.id)}
             </div>
-            <div class="team-name">${esc(side.name)}</div>
-            ${side.abbr ? `<div class="team-code">${esc(side.abbr)}</div>` : ''}
+            ${scoreCellHTML(game, side)}
         </div>`;
 }
 
-function statusHTML(game) {
-    if (game.live)     return `<span class="status live">🔴 ${esc(game.clock || 'AO VIVO')}</span>`;
-    if (game.finished) return `<span class="status">Encerrado</span>`;
-    return `<span class="status scheduled">Agendado</span>`;
+/** Contadores de cartão por time, mostrados no rodapé da partida. */
+function cardTallyHTML(game) {
+    const count = (teamId, kinds) =>
+        game.cards.filter(c => c.teamId === teamId && kinds.includes(c.kind)).length;
+
+    const yellow = count(game.home.id, ['yellow']) + count(game.away.id, ['yellow']);
+    const red    = game.cards.filter(c => c.kind !== 'yellow').length;
+    if (!yellow && !red) return '';
+
+    return `
+        <span class="tally">
+            ${yellow ? `<span class="tally-item yellow">${ICON.card}${yellow}</span>` : ''}
+            ${red    ? `<span class="tally-item red">${ICON.card}${red}</span>`       : ''}
+        </span>`;
 }
 
-function scoreHTML(game) {
-    if (game.state === 'pre') {
-        return `<div class="score-display pending">VS</div>`;
-    }
-    const h = game.home.score != null ? game.home.score : 0;
-    const a = game.away.score != null ? game.away.score : 0;
-    const pens = (game.home.pens != null && game.away.pens != null)
-        ? `<div class="score-pens">pên. ${game.home.pens} – ${game.away.pens}</div>`
-        : '';
-    return `<div class="score-display">${h}&nbsp;–&nbsp;${a}</div>${pens}`;
-}
-
-function buildCard(game, syncTime) {
-    const league = LEAGUE_BY_KEY[game.league];
-    const card = document.createElement('div');
-    card.className = 'scoreboard-card' + (game.live ? ' is-live' : '');
-    card.dataset.gameId = game.id;
-
-    const stadium = game.venue
-        ? `<div class="card-stadium">
-               🏟️ <strong>${esc(game.venue)}</strong>
-               ${game.city ? `<span class="stadium-sep">·</span> ${esc(game.city)}` : ''}
-           </div>`
-        : '';
-
-    card.innerHTML = `
-        <div class="card-header">
-            <div class="title">${esc(game.note || `Brasileirão · ${league.label}`)}</div>
-            <div class="match-time">🕐 ${esc(game.time)} (BRT)</div>
-        </div>
-
-        <div class="match-container">
-            ${teamBlockHTML(game.home)}
-            <div class="score-wrapper">${scoreHTML(game)}</div>
-            ${teamBlockHTML(game.away)}
-        </div>
-
-        <div class="scorers-container">
-            <div class="scorers-side">${goalsSideHTML(game, game.home.id)}</div>
-            <div class="scorers-side away">${goalsSideHTML(game, game.away.id)}</div>
-        </div>
-
-        ${stadium}
-
-        <div class="card-footer">
-            ${statusHTML(game)}
-            <div class="update-time">sync ${esc(syncTime)}</div>
-        </div>`;
-
-    return card;
+function stateHTML(game) {
+    if (game.live)     return `<span class="state live"><i></i>${esc(game.clock || 'ao vivo')}</span>`;
+    if (game.finished) return `<span class="state">Encerrado</span>`;
+    return `<span class="state">${esc(game.time)}</span>`;
 }
 
 /* ══════════════════════════════
-   Listas de partidas agrupadas por data
+   Partida — detalhe expandido
 ══════════════════════════════ */
 
-function renderCardGrid(games, container, syncTime, emptyMsg) {
-    container.innerHTML = '';
-    if (!games.length) {
-        container.innerHTML = `<div class="no-games">${esc(emptyMsg)}</div>`;
-        return;
+function timelineItemHTML(game, item) {
+    const side  = item.teamId === game.home.id ? game.home
+                : item.teamId === game.away.id ? game.away : null;
+    const away  = side === game.away;
+
+    let icon = ICON.ball, cls = 'goal', text = esc(item.player), extra = '';
+
+    if (item.kind === 'goal') {
+        extra = item.ownGoal ? 'contra' : item.penalty ? 'pênalti' : '';
+    } else if (item.kind === 'yellow') {
+        icon = ICON.card; cls = 'yellow'; extra = 'amarelo';
+    } else if (item.kind === 'red') {
+        icon = ICON.card; cls = 'red'; extra = 'vermelho';
+    } else if (item.kind === 'second-yellow') {
+        icon = ICON.doubleCard; cls = 'red'; extra = 'segundo amarelo';
+    } else if (item.kind === 'sub') {
+        icon = ICON.sub; cls = 'sub';
+        text = item.players.map(esc).join(' <span class="swap">⇄</span> ');
+        extra = 'substituição';
     }
-    games.forEach(g => container.appendChild(buildCard(g, syncTime)));
+
+    return `
+        <li class="tl-item ${cls}${away ? ' is-away' : ''}">
+            <span class="tl-min">${esc(item.minute || '—')}</span>
+            <span class="tl-ico">${icon}</span>
+            <span class="tl-text">${text}${extra ? ` <span class="tl-extra">${esc(extra)}</span>` : ''}</span>
+            ${side ? `<img class="tl-badge" src="${esc(side.crest)}" onerror="${CREST_ONERROR}" alt="${esc(side.name)}" title="${esc(side.name)}">` : ''}
+        </li>`;
 }
 
-function renderGroupedByDate(games, container, syncTime, ascending) {
+function factsHTML(game) {
+    const facts = [];
+    if (game.venue)      facts.push(['Estádio', game.venue + (game.city ? `, ${game.city}` : '')]);
+    if (game.referee)    facts.push(['Árbitro', game.referee]);
+    if (game.attendance) facts.push(['Público', game.attendance.toLocaleString('pt-BR')]);
+    if (game.home.form && game.away.form) {
+        facts.push(['Campanha', `${game.home.abbr || game.home.short} ${game.home.form} · ${game.away.abbr || game.away.short} ${game.away.form}`]);
+    }
+    if (!facts.length) return '';
+
+    return `<dl class="facts">${facts
+        .map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`)
+        .join('')}</dl>`;
+}
+
+function detailHTML(game) {
+    const timeline = game.timeline.length
+        ? `<ul class="timeline">${game.timeline.map(i => timelineItemHTML(game, i)).join('')}</ul>`
+        : `<p class="detail-empty">${game.state === 'pre'
+              ? 'A partida ainda não começou.'
+              : 'A ESPN não publicou os lances desta partida.'}</p>`;
+
+    return `<div class="match-detail">${timeline}${factsHTML(game)}</div>`;
+}
+
+/* ══════════════════════════════
+   Partida — montagem
+══════════════════════════════ */
+
+function buildMatch(game, isExpanded, onToggle) {
+    const league = LEAGUE_BY_KEY[game.league];
+    const node = document.createElement('article');
+    node.className = 'match' + (game.live ? ' is-live' : '') + (isExpanded ? ' is-open' : '');
+    node.style.setProperty('--accent', league.accent);
+    node.dataset.gameId = game.id;
+
+    const hasDetail = game.timeline.length > 0 || game.venue || game.referee;
+
+    node.innerHTML = `
+        <div class="match-top">
+            <span class="match-comp">${esc(league.short)}</span>
+            ${game.note ? `<span class="match-note">${esc(game.note)}</span>` : ''}
+            <span class="match-when">${esc(game.time)}</span>
+        </div>
+
+        <div class="match-rows">
+            ${teamRowHTML(game, game.home, game.away)}
+            ${teamRowHTML(game, game.away, game.home)}
+        </div>
+
+        <div class="match-bot">
+            ${stateHTML(game)}
+            ${cardTallyHTML(game)}
+            ${hasDetail
+                ? `<button class="match-more" type="button" aria-expanded="${isExpanded}">
+                       <span>${isExpanded ? 'Menos' : 'Lances'}</span>${ICON.chevron}
+                   </button>`
+                : ''}
+        </div>
+
+        ${isExpanded ? detailHTML(game) : ''}`;
+
+    const more = node.querySelector('.match-more');
+    if (more) more.addEventListener('click', () => onToggle(game.id));
+
+    return node;
+}
+
+/* ══════════════════════════════
+   Listas de partidas
+══════════════════════════════ */
+
+function renderMatchGrid(games, container, ctx, emptyMsg) {
     container.innerHTML = '';
     if (!games.length) {
-        container.innerHTML = `<div class="no-games">Nada por aqui.</div>`;
+        container.innerHTML = `<p class="empty">${esc(emptyMsg)}</p>`;
+        return;
+    }
+    const grid = document.createElement('div');
+    grid.className = 'match-grid';
+    games.forEach(g => grid.appendChild(buildMatch(g, ctx.expanded.has(g.id), ctx.onToggle)));
+    container.appendChild(grid);
+}
+
+function renderGroupedByDate(games, container, ctx, ascending) {
+    container.innerHTML = '';
+    if (!games.length) {
+        container.innerHTML = `<p class="empty">Nada por aqui.</p>`;
         return;
     }
 
@@ -127,15 +233,15 @@ function renderGroupedByDate(games, container, syncTime, ascending) {
     [...byDate.keys()]
         .sort((a, b) => (ascending ? a.localeCompare(b) : b.localeCompare(a)))
         .forEach(dateKey => {
-            const group = document.createElement('div');
+            const group = document.createElement('section');
             group.className = 'date-group';
-            group.innerHTML = `<div class="date-group-header">${esc(brDateLabel(dateKey))}</div>`;
+            group.innerHTML = `<h3 class="date-head">${esc(brDateLabel(dateKey))}</h3>`;
 
             const grid = document.createElement('div');
-            grid.className = 'dashboard';
+            grid.className = 'match-grid';
             byDate.get(dateKey)
                 .sort((a, b) => a.date - b.date)
-                .forEach(g => grid.appendChild(buildCard(g, syncTime)));
+                .forEach(g => grid.appendChild(buildMatch(g, ctx.expanded.has(g.id), ctx.onToggle)));
 
             group.appendChild(grid);
             container.appendChild(group);
@@ -168,10 +274,9 @@ function standingsRowHTML(team, pos, zoneCls) {
         <tr>
             <td class="st-pos ${zoneCls}">${pos}</td>
             <td class="col-team">
-                <div class="st-team-cell">
-                    <img class="st-crest" src="${esc(team.crest)}" onerror="${CREST_ONERROR}" alt="${esc(team.name)}">
+                <div class="st-team">
+                    <img class="st-badge" src="${esc(team.crest)}" onerror="${CREST_ONERROR}" alt="">
                     <span class="st-name">${esc(team.name)}</span>
-                    ${team.abbr ? `<span class="st-abbr">${esc(team.abbr)}</span>` : ''}
                 </div>
             </td>
             <td class="st-pts">${team.pts}</td>
@@ -179,8 +284,8 @@ function standingsRowHTML(team, pos, zoneCls) {
             <td>${team.w}</td>
             <td>${team.d}</td>
             <td>${team.l}</td>
-            <td>${team.gf}</td>
-            <td>${team.ga}</td>
+            <td class="num-soft">${team.gf}</td>
+            <td class="num-soft">${team.ga}</td>
             <td class="st-gd ${gdCls}">${gdStr}</td>
         </tr>`;
 }
@@ -191,7 +296,7 @@ function renderStandings(tables, league, container, legendEl) {
 
     if (!tables.length) {
         container.innerHTML =
-            `<div class="no-games">A ESPN ainda não publicou a classificação da ${esc(league.label)}.</div>`;
+            `<p class="empty">A ESPN ainda não publicou a classificação de ${esc(league.label)}.</p>`;
         return;
     }
 
@@ -204,17 +309,17 @@ function renderStandings(tables, league, container, legendEl) {
             .map((t, i) => standingsRowHTML(t, i + 1, zoneClassFor(i + 1, table.teams.length, league, isGroup)))
             .join('');
 
-        const card = document.createElement('div');
-        card.className = 'group-table';
-        card.innerHTML = `
-            <div class="group-table-header">${esc(isGroup && table.name ? table.name : league.label)}</div>
-            <div class="table-scroll-wrap">
-                <table class="standings-table">
+        const panel = document.createElement('div');
+        panel.className = 'panel';
+        panel.innerHTML = `
+            <h3 class="panel-head">${esc(isGroup && table.name ? table.name : league.label)}</h3>
+            <div class="scroll-x">
+                <table class="table standings-table">
                     <thead>
                         <tr>
                             <th>#</th>
                             <th class="col-team">Time</th>
-                            <th title="Pontos">Pts</th>
+                            <th title="Pontos">P</th>
                             <th title="Jogos">J</th>
                             <th title="Vitórias">V</th>
                             <th title="Empates">E</th>
@@ -227,14 +332,14 @@ function renderStandings(tables, league, container, legendEl) {
                     <tbody>${rows}</tbody>
                 </table>
             </div>`;
-        grid.appendChild(card);
+        grid.appendChild(panel);
     });
 
     container.appendChild(grid);
 
     const zones = (isGroup && league.groupZones) ? league.groupZones : league.zones;
     legendEl.innerHTML = (zones || [])
-        .map(z => `<div class="legend-item"><div class="legend-dot ${z.cls}"></div> ${esc(z.label)}</div>`)
+        .map(z => `<span class="legend-item"><i class="${z.cls}"></i>${esc(z.label)}</span>`)
         .join('');
 }
 
@@ -242,45 +347,89 @@ function renderStandings(tables, league, container, legendEl) {
    Artilheiros
 ══════════════════════════════ */
 
+/** Numera a lista respeitando empates (1º, 2º, 2º, 4º…). */
+function rankedRows(list, sameAs, rowHTML) {
+    let prev = null, shown = 0;
+    return list.map((item, i) => {
+        if (prev === null || !sameAs(item, prev)) shown = i + 1;
+        prev = item;
+        return rowHTML(item, shown);
+    }).join('');
+}
+
 function renderTopScorers(list, container, emptyMsg) {
     if (!list.length) {
-        container.innerHTML =
-            `<div class="no-games" style="border:none;">${esc(emptyMsg || 'Nenhum gol registrado ainda nesta série.')}</div>`;
+        container.innerHTML = `<p class="empty">${esc(emptyMsg)}</p>`;
         return;
     }
 
-    let prevGoals = -1, position = 0, shown = 0;
-    const rows = list.map((s, i) => {
-        position = i + 1;
-        if (s.goals !== prevGoals) { shown = position; prevGoals = s.goals; }
-        const cls = shown === 1 ? 'gold' : shown === 2 ? 'silver' : shown === 3 ? 'bronze' : '';
-        return `
-            <tr>
-                <td class="sc-rank ${cls}">${shown}º</td>
-                <td class="col-player">
-                    <div class="sc-player-cell">
-                        <img class="sc-crest" src="${esc(s.crest)}" onerror="${CREST_ONERROR}" alt="${esc(s.team)}">
-                        <div class="sc-player-info">
-                            <span class="sc-name">${esc(s.name)}</span>
-                            <span class="sc-team">${esc(s.team)}${s.pens ? ` · ${s.pens} de pênalti` : ''}</span>
-                        </div>
-                    </div>
-                </td>
-                <td class="sc-goals">${s.goals}</td>
-            </tr>`;
-    }).join('');
+    const rows = rankedRows(list, (a, b) => a.goals === b.goals, (s, pos) => `
+        <tr>
+            <td class="rk ${pos === 1 ? 'first' : ''}">${pos}</td>
+            <td class="col-player">
+                <div class="pl">
+                    <img class="pl-badge" src="${esc(s.crest)}" onerror="${CREST_ONERROR}" alt="">
+                    <span class="pl-info">
+                        <span class="pl-name">${esc(s.name)}</span>
+                        <span class="pl-team">${esc(s.team)}${s.pens ? ` · ${s.pens} de pênalti` : ''}</span>
+                    </span>
+                </div>
+            </td>
+            <td class="pl-num">${s.goals}</td>
+        </tr>`);
 
     container.innerHTML = `
-        <table class="scorers-table">
-            <thead>
-                <tr>
-                    <th>#</th>
-                    <th class="col-player">Jogador</th>
-                    <th title="Gols">⚽</th>
-                </tr>
-            </thead>
-            <tbody>${rows}</tbody>
-        </table>`;
+        <div class="scroll-x">
+            <table class="table">
+                <thead>
+                    <tr><th>#</th><th class="col-player">Jogador</th><th title="Gols">G</th></tr>
+                </thead>
+                <tbody>${rows}</tbody>
+            </table>
+        </div>`;
+}
+
+/* ══════════════════════════════
+   Cartões
+══════════════════════════════ */
+
+function renderCardLeaders(list, container, emptyMsg) {
+    if (!list.length) {
+        container.innerHTML = `<p class="empty">${esc(emptyMsg)}</p>`;
+        return;
+    }
+
+    const weight = p => p.red * 2 + p.yellow;
+    const rows = rankedRows(list, (a, b) => weight(a) === weight(b), (p, pos) => `
+        <tr>
+            <td class="rk">${pos}</td>
+            <td class="col-player">
+                <div class="pl">
+                    <img class="pl-badge" src="${esc(p.crest)}" onerror="${CREST_ONERROR}" alt="">
+                    <span class="pl-info">
+                        <span class="pl-name">${esc(p.name)}</span>
+                        <span class="pl-team">${esc(p.team)}</span>
+                    </span>
+                </div>
+            </td>
+            <td class="pl-num card-y">${p.yellow || '–'}</td>
+            <td class="pl-num card-r">${p.red || '–'}</td>
+        </tr>`);
+
+    container.innerHTML = `
+        <div class="scroll-x">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th class="col-player">Jogador</th>
+                        <th title="Amarelos">A</th>
+                        <th title="Vermelhos (inclui segundo amarelo)">V</th>
+                    </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+            </table>
+        </div>`;
 }
 
 /* ══════════════════════════════
@@ -291,29 +440,28 @@ function dismissNotif(el) {
     if (!el || el.classList.contains('leaving')) return;
     clearTimeout(el._timer);
     el.classList.add('leaving');
-    setTimeout(() => el.remove(), 280);
+    setTimeout(() => el.remove(), 260);
 }
 
 function showGoalNotif({ player, teamName, crest, leagueKey }) {
-    const wrap = document.getElementById('goal-notif-wrap');
+    const wrap = document.getElementById('notif-wrap');
     const league = LEAGUE_BY_KEY[leagueKey];
 
     const el = document.createElement('div');
-    el.className = 'goal-notif';
+    el.className = 'notif';
+    if (league) el.style.setProperty('--accent', league.accent);
     el.innerHTML = `
-        <div class="notif-ball">⚽</div>
+        <span class="notif-ico">${ICON.ball}</span>
         <div class="notif-body">
-            <div class="notif-label">Goool!</div>
+            <div class="notif-label">Gol · ${esc(league ? league.short : '')}</div>
             <div class="notif-player">${esc(player)}</div>
             <div class="notif-team">
-                <img src="${esc(crest)}" onerror="${CREST_ONERROR}" alt="">
-                ${esc(teamName)}
-                <span class="notif-serie">${esc(league ? league.label : '')}</span>
+                <img src="${esc(crest)}" onerror="${CREST_ONERROR}" alt="">${esc(teamName)}
             </div>
         </div>
-        <button class="notif-close" type="button" aria-label="Fechar">✕</button>`;
+        <button class="notif-close" type="button" aria-label="Fechar">×</button>`;
 
     el.querySelector('.notif-close').addEventListener('click', () => dismissNotif(el));
     wrap.appendChild(el);
-    el._timer = setTimeout(() => dismissNotif(el), 6000);
+    el._timer = setTimeout(() => dismissNotif(el), 6500);
 }
