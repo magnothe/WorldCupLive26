@@ -1,22 +1,41 @@
 /* ══════════════════════════════════════════════
    app.js — Estado, navegação e atualização automática
    Depende de: api.js, ui.js
+
+   Estratégia de carga — a resposta de temporada da ESPN passa de 4 MB por
+   liga, contra 1 KB da janela ao vivo. Então:
+
+     • abrir o site busca só a janela ao vivo (±2 dias) da liga ativa;
+     • a temporada só é baixada quando você abre uma aba que precisa dela
+       (Resultados, Próximos, Artilharia, Cartões) e nunca é rebaixada em
+       segundo plano — jogo passado não muda;
+     • a classificação vem separada, só na aba dela;
+     • o polling ao vivo cobre a liga ativa a cada 30 s e varre as outras a
+       cada 3 min, apenas para o pontinho vermelho da barra;
+     • com a aba do navegador em segundo plano, o polling para.
    ══════════════════════════════════════════════ */
 
-const LIVE_INTERVAL   = 30 * 1000;        // placares ao vivo
-const SEASON_TTL      = 10 * 60 * 1000;   // temporada + classificação
-const LIVE_WINDOW_DAY = 2;                // dias antes/depois de hoje
+const LIVE_INTERVAL  = 30 * 1000;        // liga ativa
+const SWEEP_INTERVAL = 3 * 60 * 1000;    // demais ligas (só o indicador ao vivo)
+const SEASON_TTL     = 30 * 60 * 1000;
+const STANDINGS_TTL  = 5 * 60 * 1000;
+const LIVE_WINDOW_DAY = 2;               // dias antes/depois de hoje
+const PAGE_SIZE       = 40;              // partidas por página nas listas longas
 
 const STORAGE_LEAGUE = 'footballlive.league';
 const STORAGE_TAB    = 'footballlive.tab';
 
 /* Cache por campeonato */
 const store = Object.fromEntries(LEAGUES.map(l => [l.key, {
-    games:    new Map(),   // id -> jogo normalizado
-    standings: null,
-    seasonAt:  0,
-    loading:   false,
-    error:     null,
+    games:   new Map(),   // id -> jogo normalizado
+    sorted:  null,        // memo de gamesOf()
+    version: 0,           // sobe quando algum jogo muda de verdade
+
+    seasonAt:  0, seasonLoading:  false,
+    standings: null, standingsAt: 0, standingsLoading: false,
+
+    derived: { version: -1, scorers: null, cards: null },
+    error:   null,
 }]));
 
 let activeLeague = localStorage.getItem(STORAGE_LEAGUE) || 'bra1';
@@ -31,11 +50,16 @@ const TABS = [
     { id: 'cards',     label: 'Cartões'       },
 ];
 
+/** Abas que dependem da temporada inteira. */
+const NEEDS_SEASON = new Set(['past', 'upcoming', 'scorers', 'cards']);
+
 let activeTab = localStorage.getItem(STORAGE_TAB) || 'today';
 if (!TABS.some(t => t.id === activeTab)) activeTab = 'today';
 
+let pageLimit = PAGE_SIZE;
+
 const expanded   = new Set();   // ids de partidas com os lances abertos
-let   knownGoals = new Map();   // gameId -> Set(chave do gol)
+const knownGoals = new Map();   // gameId -> Set(chave do gol)
 let   seeded     = false;       // evita disparar notificações no 1º carregamento
 
 const el = {
@@ -68,19 +92,64 @@ function shiftDateKey(key, days) {
 const todayKey = () => brDateKey(new Date());
 
 /* ══════════════════════════════
-   Carregamento
+   Cache de partidas
 ══════════════════════════════ */
 
+/** Só o que muda durante uma partida — usada para detectar atualização real. */
+function gameSignature(g) {
+    return `${g.state}|${g.clock}|${g.home.score}|${g.away.score}|${g.goals.length}|${g.cards.length}`;
+}
+
+/**
+ * Funde as partidas recebidas no cache. Devolve `true` se alguma coisa mudou —
+ * assim o polling não redesenha a tela quando a resposta veio idêntica.
+ */
 function mergeGames(leagueKey, games) {
-    const bucket = store[leagueKey].games;
-    games.forEach(g => bucket.set(g.id, g));
+    const s = store[leagueKey];
+    let changed = false;
+
+    games.forEach(g => {
+        const old = s.games.get(g.id);
+        if (!old || gameSignature(old) !== gameSignature(g)) {
+            s.games.set(g.id, g);
+            changed = true;
+        }
+        // sem mudança: mantém o objeto antigo, preservando a linha do tempo
+        // já montada por matchTimeline()
+    });
+
+    if (changed) {
+        s.sorted = null;
+        s.version++;
+    }
+    return changed;
 }
 
 function gamesOf(leagueKey) {
-    return [...store[leagueKey].games.values()].sort((a, b) => a.date - b.date);
+    const s = store[leagueKey];
+    if (!s.sorted) s.sorted = [...s.games.values()].sort((a, b) => a.date - b.date);
+    return s.sorted;
 }
 
-/** Janela curta (±2 dias) — barata, usada no polling de todos os campeonatos. */
+/** Artilharia e cartões percorrem a temporada inteira — memorizados por versão. */
+function derivedOf(leagueKey, what) {
+    const s = store[leagueKey];
+    if (s.derived.version !== s.version) {
+        s.derived = { version: s.version, scorers: null, cards: null };
+    }
+    if (!s.derived[what]) {
+        s.derived[what] = what === 'scorers'
+            ? computeTopScorers(gamesOf(leagueKey))
+            : computeCardLeaders(gamesOf(leagueKey));
+    }
+    return s.derived[what];
+}
+
+/* ══════════════════════════════
+   Carregamento
+══════════════════════════════ */
+
+/** Janela curta (±2 dias) — ~1 KB, é o que roda no polling. */
 async function loadLiveWindow(leagueKey) {
     const today = todayKey();
     const games = await fetchGames(
@@ -88,57 +157,76 @@ async function loadLiveWindow(leagueKey) {
         shiftDateKey(today, -LIVE_WINDOW_DAY),
         shiftDateKey(today, +LIVE_WINDOW_DAY),
     );
-    mergeGames(leagueKey, games);
-    return games;
+    return mergeGames(leagueKey, games);
 }
 
-/** Temporada completa + classificação do campeonato (com TTL). */
-async function loadSeason(leagueKey, force) {
+/** Temporada inteira (~4 MB). Só sob demanda, e sem recarga em segundo plano. */
+async function ensureSeason(leagueKey) {
     const s = store[leagueKey];
-    const fresh = Date.now() - s.seasonAt < SEASON_TTL;
-    if (s.loading || (fresh && !force)) return;
+    if (s.seasonLoading || Date.now() - s.seasonAt < SEASON_TTL) return;
 
-    s.loading = true;
+    s.seasonLoading = true;
+    scheduleRender();
     try {
-        const [season, standings] = await Promise.all([
-            fetchSeason(leagueKey),
-            fetchStandings(leagueKey),
-        ]);
-        mergeGames(leagueKey, season);
-        s.standings = standings;
-        s.seasonAt  = Date.now();
-        s.error     = null;
+        mergeGames(leagueKey, await fetchSeason(leagueKey));
+        s.seasonAt = Date.now();
+        s.error = null;
     } catch (err) {
         s.error = err.message || String(err);
     } finally {
-        s.loading = false;
+        s.seasonLoading = false;
+        scheduleRender();
     }
+}
+
+/** Classificação (~30 KB). Independente da temporada. */
+async function ensureStandings(leagueKey) {
+    const s = store[leagueKey];
+    if (s.standingsLoading || (s.standings && Date.now() - s.standingsAt < STANDINGS_TTL)) return;
+
+    s.standingsLoading = true;
+    scheduleRender();
+    try {
+        s.standings   = await fetchStandings(leagueKey);
+        s.standingsAt = Date.now();
+    } catch (err) {
+        s.error = err.message || String(err);
+    } finally {
+        s.standingsLoading = false;
+        scheduleRender();
+    }
+}
+
+/** Busca o que a aba atual precisa — e nada além disso. */
+function ensureDataForTab(leagueKey, tab) {
+    if (NEEDS_SEASON.has(tab))   return ensureSeason(leagueKey);
+    if (tab === 'standings')     return ensureStandings(leagueKey);
+    return Promise.resolve();
 }
 
 /* ══════════════════════════════
    Notificações de gol
 ══════════════════════════════ */
 
-function checkGoals() {
-    LEAGUES.forEach(league => {
-        gamesOf(league.key).forEach(game => {
-            if (game.state === 'pre') return;
-
+/** Só as partidas em andamento interessam — não vale varrer a temporada. */
+function checkGoals(leagueKeys) {
+    leagueKeys.forEach(key => {
+        gamesOf(key).filter(g => g.live).forEach(game => {
             const seen = knownGoals.get(game.id) || new Set();
             const teamById = { [game.home.id]: game.home, [game.away.id]: game.away };
 
             game.goals.forEach((goal, i) => {
-                const key = `${goal.teamId}|${goal.minute}|${goal.player}|${i}`;
-                if (seen.has(key)) return;
-                seen.add(key);
+                const gk = `${goal.teamId}|${goal.minute}|${goal.player}|${i}`;
+                if (seen.has(gk)) return;
+                seen.add(gk);
 
                 const team = teamById[goal.teamId];
-                if (seeded && game.live && team) {
+                if (seeded && team) {
                     showGoalNotif({
                         player:    goal.player + (goal.ownGoal ? ' (contra)' : ''),
                         teamName:  team.name,
                         crest:     team.crest,
-                        leagueKey: league.key,
+                        leagueKey: key,
                     });
                 }
             });
@@ -157,8 +245,17 @@ function liveCount(leagueKey) {
     return gamesOf(leagueKey).filter(g => g.live).length;
 }
 
+/* A barra só é remontada quando muda de verdade — ela é redesenhada em todo
+   render, e recriar 8 botões a cada 30 s é desperdício puro. */
+let navSignature = '';
+
 function renderLeagueNav() {
+    const signature = activeLeague + '|' + LEAGUES.map(l => liveCount(l.key)).join(',');
+    if (signature === navSignature) return;
+    navSignature = signature;
+
     el.leagueNav.innerHTML = '';
+    const frag = document.createDocumentFragment();
 
     LEAGUE_GROUPS.forEach(group => {
         const wrap = document.createElement('div');
@@ -176,8 +273,10 @@ function renderLeagueNav() {
             wrap.appendChild(btn);
         });
 
-        el.leagueNav.appendChild(wrap);
+        frag.appendChild(wrap);
     });
+
+    el.leagueNav.appendChild(frag);
 }
 
 async function selectLeague(key) {
@@ -185,13 +284,13 @@ async function selectLeague(key) {
     activeLeague = key;
     localStorage.setItem(STORAGE_LEAGUE, key);
     expanded.clear();
+    pageLimit = PAGE_SIZE;
 
     document.documentElement.style.setProperty('--accent', LEAGUE_BY_KEY[key].accent);
-    renderLeagueNav();
     render();
 
-    await loadSeason(key);
-    render();
+    await Promise.all([tick([key]), ensureDataForTab(key, activeTab)]);
+    scheduleRender();
 }
 
 /* ══════════════════════════════
@@ -199,15 +298,22 @@ async function selectLeague(key) {
 ══════════════════════════════ */
 
 function renderTabs() {
+    const s     = store[activeLeague];
     const games = gamesOf(activeLeague);
     const today = todayKey();
+
+    // Sem a temporada carregada, os totais de Resultados/Próximos seriam
+    // apenas o que veio na janela ao vivo — melhor não mostrar número algum.
+    const hasSeason = s.seasonAt > 0;
     const count = {
         today:    games.filter(g => g.dateKey === today).length,
-        past:     games.filter(g => g.dateKey <   today).length,
-        upcoming: games.filter(g => g.dateKey >   today).length,
+        past:     hasSeason ? games.filter(g => g.dateKey < today).length : null,
+        upcoming: hasSeason ? games.filter(g => g.dateKey > today).length : null,
     };
 
     el.tabs.innerHTML = '';
+    const frag = document.createDocumentFragment();
+
     TABS.forEach(tab => {
         const btn = document.createElement('button');
         btn.type = 'button';
@@ -216,14 +322,21 @@ function renderTabs() {
         btn.innerHTML = esc(tab.label) +
             (count[tab.id] != null ? `<span class="tab-count">${count[tab.id]}</span>` : '');
         btn.addEventListener('click', () => selectTab(tab.id));
-        el.tabs.appendChild(btn);
+        frag.appendChild(btn);
     });
+
+    el.tabs.appendChild(frag);
 }
 
-function selectTab(id) {
+async function selectTab(id) {
+    if (id === activeTab) return;
     activeTab = id;
+    pageLimit = PAGE_SIZE;
     localStorage.setItem(STORAGE_TAB, id);
     render();
+
+    await ensureDataForTab(activeLeague, id);
+    scheduleRender();
 }
 
 function showActiveView() {
@@ -242,7 +355,22 @@ function toggleMatch(id) {
     render();
 }
 
-const ctx = { expanded, onToggle: toggleMatch };
+const ctx = {
+    expanded,
+    onToggle: toggleMatch,
+    pageSize: PAGE_SIZE,
+    get limit() { return pageLimit; },
+    onMore() { pageLimit += PAGE_SIZE; render(); },
+};
+
+/* Um render por quadro, no máximo. Vários caminhos (polling, fim de fetch,
+   clique) podem pedir redesenho ao mesmo tempo. */
+let renderQueued = false;
+function scheduleRender() {
+    if (renderQueued) return;
+    renderQueued = true;
+    requestAnimationFrame(() => { renderQueued = false; render(); });
+}
 
 function renderLead(league, games, todays) {
     const live = todays.filter(g => g.live).length;
@@ -253,7 +381,7 @@ function renderLead(league, games, todays) {
     parts.push(todays.length
         ? `${todays.length} ${todays.length === 1 ? 'jogo hoje' : 'jogos hoje'}`
         : 'nenhum jogo hoje');
-    if (games.length) parts.push(`${games.length} na temporada`);
+    if (store[league.key].seasonAt) parts.push(`${games.length} na temporada`);
 
     el.leadSub.textContent = parts.join(' · ');
     el.leadSub.classList.toggle('has-live', live > 0);
@@ -266,6 +394,9 @@ function render() {
     const today  = todayKey();
     const todays = games.filter(g => g.dateKey === today);
 
+    const busy    = s.seasonLoading || s.standingsLoading;
+    const loading = `<p class="empty">Carregando…</p>`;
+
     renderLead(league, games, todays);
     renderTabs();
     showActiveView();
@@ -274,42 +405,39 @@ function render() {
         case 'today':
             if (!games.length && s.error) {
                 el.today.innerHTML = `<p class="empty is-error">Erro ao carregar ${esc(league.label)}: ${esc(s.error)}</p>`;
-            } else if (!games.length && (s.loading || !s.seasonAt)) {
-                el.today.innerHTML = `<p class="empty">Carregando…</p>`;
-            } else if (!games.length) {
-                el.today.innerHTML = `<p class="empty">A ESPN não publica partidas de ${esc(league.label)} no momento.</p>`;
+            } else if (!games.length && busy) {
+                el.today.innerHTML = loading;
             } else {
                 renderMatchGrid(todays, el.today, ctx, `Nenhum jogo de ${league.label} hoje.`);
             }
             break;
 
         case 'past':
-            renderGroupedByDate(games.filter(g => g.dateKey < today), el.past, ctx, false);
+            if (busy && !s.seasonAt) el.past.innerHTML = loading;
+            else renderGroupedByDate(games.filter(g => g.dateKey < today), el.past, ctx, false);
             break;
 
         case 'upcoming':
-            renderGroupedByDate(games.filter(g => g.dateKey > today), el.upcoming, ctx, true);
+            if (busy && !s.seasonAt) el.upcoming.innerHTML = loading;
+            else renderGroupedByDate(games.filter(g => g.dateKey > today), el.upcoming, ctx, true);
             break;
 
         case 'standings':
-            renderStandings(s.standings || [], league, el.standings, el.standingsLeg);
+            if (s.standingsLoading && !s.standings) el.standings.innerHTML = loading;
+            else renderStandings(s.standings || [], league, el.standings, el.standingsLeg);
             break;
 
-        case 'scorers': {
-            const played = games.some(g => g.state !== 'pre');
-            renderTopScorers(computeTopScorers(games), el.scorers, played
-                ? `A ESPN não publica os autores dos gols de ${league.label}.`
-                : `Nenhum gol registrado ainda em ${league.label}.`);
+        case 'scorers':
+            if (busy && !s.seasonAt) el.scorers.innerHTML = loading;
+            else renderTopScorers(derivedOf(activeLeague, 'scorers'), el.scorers,
+                `A ESPN não publica os autores dos gols de ${league.label}.`);
             break;
-        }
 
-        case 'cards': {
-            const played = games.some(g => g.state !== 'pre');
-            renderCardLeaders(computeCardLeaders(games), el.cards, played
-                ? `A ESPN não publica os cartões de ${league.label}.`
-                : `Nenhum cartão registrado ainda em ${league.label}.`);
+        case 'cards':
+            if (busy && !s.seasonAt) el.cards.innerHTML = loading;
+            else renderCardLeaders(derivedOf(activeLeague, 'cards'), el.cards,
+                `A ESPN não publica os cartões de ${league.label}.`);
             break;
-        }
     }
 
     renderLeagueNav();
@@ -319,17 +447,28 @@ function render() {
    Ciclo de vida
 ══════════════════════════════ */
 
-async function tick() {
-    const results = await Promise.allSettled(LEAGUES.map(l => loadLiveWindow(l.key)));
+/** Atualiza a janela ao vivo das ligas pedidas. Redesenha só se mudou algo. */
+async function tick(leagueKeys) {
+    const keys = leagueKeys || [activeLeague];
+    const results = await Promise.allSettled(keys.map(k => loadLiveWindow(k)));
+
+    let changed = false;
     results.forEach((r, i) => {
         if (r.status === 'rejected') {
-            store[LEAGUES[i].key].error = String((r.reason && r.reason.message) || r.reason);
+            store[keys[i]].error = String((r.reason && r.reason.message) || r.reason);
+            changed = true;
+        } else if (r.value) {
+            changed = true;
         }
     });
-    checkGoals();
+
+    checkGoals(keys);
     el.syncLabel.textContent = 'atualizado ' + new Date().toLocaleTimeString('pt-BR', { hour12: false });
-    render();
+    if (changed) scheduleRender();
+    return changed;
 }
+
+const allKeys = () => LEAGUES.map(l => l.key);
 
 async function init() {
     el.todayLabel.textContent = new Date().toLocaleDateString('pt-BR', {
@@ -337,15 +476,23 @@ async function init() {
     });
 
     document.documentElement.style.setProperty('--accent', LEAGUE_BY_KEY[activeLeague].accent);
-    renderLeagueNav();
     render();
 
-    await tick();                        // janela ao vivo de todos os campeonatos
-    await loadSeason(activeLeague);      // temporada do campeonato ativo
-    render();
+    // 1. liga ativa primeiro — é o que aparece na tela
+    await tick([activeLeague]);
+    // 2. o que a aba aberta precisa
+    await ensureDataForTab(activeLeague, activeTab);
+    scheduleRender();
+    // 3. as outras ligas, só para o indicador ao vivo da barra
+    tick(allKeys());
 
-    setInterval(tick, LIVE_INTERVAL);
-    setInterval(() => loadSeason(activeLeague, true).then(render), SEASON_TTL);
+    // Aba em segundo plano não precisa de polling.
+    setInterval(() => { if (!document.hidden) tick([activeLeague]); }, LIVE_INTERVAL);
+    setInterval(() => { if (!document.hidden) tick(allKeys()); },      SWEEP_INTERVAL);
+
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) tick([activeLeague]);
+    });
 }
 
 init();

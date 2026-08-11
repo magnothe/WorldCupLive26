@@ -147,28 +147,40 @@ const LEAGUE_GROUPS = LEAGUES.reduce((acc, league) => {
    Helpers de data (fuso de Brasília)
 ══════════════════════════════ */
 
+/* Construir um Intl.DateTimeFormat é caro (~0,1 ms). Uma temporada tem 380
+   partidas e cada uma precisa de data + hora — criar os formatadores dentro
+   da função custava ~760 construções por liga carregada. Criados uma vez. */
+const FMT_DATE_KEY = new Intl.DateTimeFormat('en-CA', {
+    timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit',
+});
+const FMT_TIME = new Intl.DateTimeFormat('pt-BR', {
+    timeZone: TZ, hour: '2-digit', minute: '2-digit', hour12: false,
+});
+const FMT_DATE_LABEL = new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+});
+
 /** "2026-08-11" na timezone de Brasília, a partir de um Date. */
 function brDateKey(date) {
-    const p = new Intl.DateTimeFormat('en-CA', {
-        timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit',
-    }).formatToParts(date);
-    const get = t => p.find(x => x.type === t).value;
-    return `${get('year')}-${get('month')}-${get('day')}`;
+    // en-CA já formata como YYYY-MM-DD, então não é preciso remontar as partes
+    return FMT_DATE_KEY.format(date);
 }
 
 /** "HH:MM" no fuso de Brasília. */
 function brTime(date) {
-    return new Intl.DateTimeFormat('pt-BR', {
-        timeZone: TZ, hour: '2-digit', minute: '2-digit', hour12: false,
-    }).format(date);
+    return FMT_TIME.format(date);
 }
 
 /** "segunda-feira, 11 de agosto de 2026" a partir de uma chave "YYYY-MM-DD". */
+const dateLabelCache = new Map();
 function brDateLabel(key) {
+    let label = dateLabelCache.get(key);
+    if (label) return label;
+
     const [y, m, d] = key.split('-').map(Number);
-    return new Date(Date.UTC(y, m - 1, d, 12)).toLocaleDateString('pt-BR', {
-        timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-    });
+    label = FMT_DATE_LABEL.format(new Date(Date.UTC(y, m - 1, d, 12)));
+    dateLabelCache.set(key, label);
+    return label;
 }
 
 /** "YYYYMMDD" — formato aceito pelo parâmetro `dates` da ESPN. */
@@ -325,8 +337,25 @@ function normalizeEvent(ev, leagueKey) {
         goals,
         cards,
         subs,
-        timeline: [...goals, ...cards, ...subs].sort((a, b) => a.order - b.order),
+        // A linha do tempo só aparece quando o usuário abre "Lances". Ordenar
+        // 380 partidas × N lances no carregamento era trabalho jogado fora.
+        timeline: null,
     };
+}
+
+/** Lances da partida em ordem cronológica. Montada na primeira chamada. */
+function matchTimeline(game) {
+    if (!game.timeline) {
+        game.timeline = [...game.goals, ...game.cards, ...game.subs]
+            .sort((a, b) => a.order - b.order);
+    }
+    return game.timeline;
+}
+
+/** Há algo para mostrar no painel de detalhe? */
+function hasMatchDetail(game) {
+    return game.goals.length > 0 || game.cards.length > 0 || game.subs.length > 0
+        || !!game.venue || !!game.referee;
 }
 
 /* ══════════════════════════════
@@ -348,10 +377,10 @@ async function getJSON(url) {
  * Partidas de um campeonato num intervalo de datas (chaves "YYYY-MM-DD").
  * Sem `from`/`to` a ESPN devolve apenas a rodada corrente.
  */
-async function fetchGames(leagueKey, from, to) {
+async function fetchGames(leagueKey, from, to, bustSeconds) {
     const league = LEAGUE_BY_KEY[leagueKey];
     // `limit` é obrigatório: sem ele a ESPN corta a resposta em 100 partidas.
-    let url = `${SCOREBOARD_BASE}/${league.slug}/scoreboard?limit=1000&${cacheBust(20)}`;
+    let url = `${SCOREBOARD_BASE}/${league.slug}/scoreboard?limit=1000&${cacheBust(bustSeconds || 20)}`;
     if (from && to) url += `&dates=${espnDate(from)}-${espnDate(to)}`;
 
     const data = await getJSON(url);
@@ -368,13 +397,17 @@ async function fetchGames(leagueKey, from, to) {
 async function fetchSeason(leagueKey) {
     const league = LEAGUE_BY_KEY[leagueKey];
 
+    // A resposta passa de 4 MB. Cache-bust longo (10 min) para que recarregar
+    // a página ou voltar para a liga reaproveite o cache do CDN e do navegador.
+    const SEASON_BUST = 600;
+
     const now  = seasonWindow(league);
-    const games = await fetchGames(leagueKey, now.from, now.to);
+    const games = await fetchGames(leagueKey, now.from, now.to, SEASON_BUST);
     if (games.length) return games;
 
     const prev = seasonWindow(league, 1);
     try {
-        return await fetchGames(leagueKey, prev.from, prev.to);
+        return await fetchGames(leagueKey, prev.from, prev.to, SEASON_BUST);
     } catch (e) {
         return games;
     }

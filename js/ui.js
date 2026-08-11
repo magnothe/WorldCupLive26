@@ -68,7 +68,8 @@ function teamRowHTML(game, side, other) {
 
     return `
         <div class="${cls}">
-            <img class="t-badge" src="${esc(side.crest)}" onerror="${CREST_ONERROR}" alt="">
+            <img class="t-badge" src="${esc(side.crest)}" onerror="${CREST_ONERROR}" alt=""
+                 loading="lazy" decoding="async" width="26" height="26">
             <div class="t-main">
                 <div class="t-name">${esc(side.name)}</div>
                 ${goalLineHTML(game, side.id)}
@@ -129,7 +130,9 @@ function timelineItemHTML(game, item) {
             <span class="tl-min">${esc(item.minute || '—')}</span>
             <span class="tl-ico">${icon}</span>
             <span class="tl-text">${text}${extra ? ` <span class="tl-extra">${esc(extra)}</span>` : ''}</span>
-            ${side ? `<img class="tl-badge" src="${esc(side.crest)}" onerror="${CREST_ONERROR}" alt="${esc(side.name)}" title="${esc(side.name)}">` : ''}
+            ${side ? `<img class="tl-badge" src="${esc(side.crest)}" onerror="${CREST_ONERROR}"
+                           alt="${esc(side.name)}" title="${esc(side.name)}"
+                           loading="lazy" decoding="async" width="16" height="16">` : ''}
         </li>`;
 }
 
@@ -149,8 +152,9 @@ function factsHTML(game) {
 }
 
 function detailHTML(game) {
-    const timeline = game.timeline.length
-        ? `<ul class="timeline">${game.timeline.map(i => timelineItemHTML(game, i)).join('')}</ul>`
+    const items = matchTimeline(game);
+    const timeline = items.length
+        ? `<ul class="timeline">${items.map(i => timelineItemHTML(game, i)).join('')}</ul>`
         : `<p class="detail-empty">${game.state === 'pre'
               ? 'A partida ainda não começou.'
               : 'A ESPN não publicou os lances desta partida.'}</p>`;
@@ -169,7 +173,7 @@ function buildMatch(game, isExpanded, onToggle) {
     node.style.setProperty('--accent', league.accent);
     node.dataset.gameId = game.id;
 
-    const hasDetail = game.timeline.length > 0 || game.venue || game.referee;
+    const hasDetail = hasMatchDetail(game);
 
     node.innerHTML = `
         <div class="match-top">
@@ -217,6 +221,13 @@ function renderMatchGrid(games, container, ctx, emptyMsg) {
     container.appendChild(grid);
 }
 
+/**
+ * Lista agrupada por data, paginada.
+ *
+ * Uma temporada tem ~380 partidas. Montar todas de uma vez são milhares de nós
+ * no DOM e centenas de imagens — o que travava a aba "Resultados". `ctx.limit`
+ * corta a lista; o resto entra sob demanda pelo botão do rodapé.
+ */
 function renderGroupedByDate(games, container, ctx, ascending) {
     container.innerHTML = '';
     if (!games.length) {
@@ -224,28 +235,44 @@ function renderGroupedByDate(games, container, ctx, ascending) {
         return;
     }
 
+    const ordered = games.slice().sort((a, b) => (ascending ? a.date - b.date : b.date - a.date));
+    const limit   = ctx.limit || ordered.length;
+    const page    = ordered.slice(0, limit);
+
     const byDate = new Map();
-    games.forEach(g => {
+    page.forEach(g => {
         if (!byDate.has(g.dateKey)) byDate.set(g.dateKey, []);
         byDate.get(g.dateKey).push(g);
     });
 
-    [...byDate.keys()]
-        .sort((a, b) => (ascending ? a.localeCompare(b) : b.localeCompare(a)))
-        .forEach(dateKey => {
-            const group = document.createElement('section');
-            group.className = 'date-group';
-            group.innerHTML = `<h3 class="date-head">${esc(brDateLabel(dateKey))}</h3>`;
+    const frag = document.createDocumentFragment();
 
-            const grid = document.createElement('div');
-            grid.className = 'match-grid';
-            byDate.get(dateKey)
-                .sort((a, b) => a.date - b.date)
-                .forEach(g => grid.appendChild(buildMatch(g, ctx.expanded.has(g.id), ctx.onToggle)));
+    byDate.forEach((dayGames, dateKey) => {
+        const group = document.createElement('section');
+        group.className = 'date-group';
+        group.innerHTML = `<h3 class="date-head">${esc(brDateLabel(dateKey))}</h3>`;
 
-            group.appendChild(grid);
-            container.appendChild(group);
-        });
+        const grid = document.createElement('div');
+        grid.className = 'match-grid';
+        dayGames
+            .sort((a, b) => a.date - b.date)
+            .forEach(g => grid.appendChild(buildMatch(g, ctx.expanded.has(g.id), ctx.onToggle)));
+
+        group.appendChild(grid);
+        frag.appendChild(group);
+    });
+
+    const rest = ordered.length - page.length;
+    if (rest > 0) {
+        const more = document.createElement('button');
+        more.type = 'button';
+        more.className = 'load-more';
+        more.textContent = `Mostrar mais ${Math.min(rest, ctx.pageSize || 40)} de ${rest}`;
+        more.addEventListener('click', ctx.onMore);
+        frag.appendChild(more);
+    }
+
+    container.appendChild(frag);
 }
 
 /* ══════════════════════════════
@@ -275,7 +302,8 @@ function standingsRowHTML(team, pos, zoneCls) {
             <td class="st-pos ${zoneCls}">${pos}</td>
             <td class="col-team">
                 <div class="st-team">
-                    <img class="st-badge" src="${esc(team.crest)}" onerror="${CREST_ONERROR}" alt="">
+                    <img class="st-badge" src="${esc(team.crest)}" onerror="${CREST_ONERROR}" alt=""
+                         loading="lazy" decoding="async" width="20" height="20">
                     <span class="st-name">${esc(team.name)}</span>
                 </div>
             </td>
@@ -368,7 +396,8 @@ function renderTopScorers(list, container, emptyMsg) {
             <td class="rk ${pos === 1 ? 'first' : ''}">${pos}</td>
             <td class="col-player">
                 <div class="pl">
-                    <img class="pl-badge" src="${esc(s.crest)}" onerror="${CREST_ONERROR}" alt="">
+                    <img class="pl-badge" src="${esc(s.crest)}" onerror="${CREST_ONERROR}" alt=""
+                         loading="lazy" decoding="async" width="22" height="22">
                     <span class="pl-info">
                         <span class="pl-name">${esc(s.name)}</span>
                         <span class="pl-team">${esc(s.team)}${s.pens ? ` · ${s.pens} de pênalti` : ''}</span>
@@ -405,7 +434,8 @@ function renderCardLeaders(list, container, emptyMsg) {
             <td class="rk">${pos}</td>
             <td class="col-player">
                 <div class="pl">
-                    <img class="pl-badge" src="${esc(p.crest)}" onerror="${CREST_ONERROR}" alt="">
+                    <img class="pl-badge" src="${esc(p.crest)}" onerror="${CREST_ONERROR}" alt=""
+                         loading="lazy" decoding="async" width="22" height="22">
                     <span class="pl-info">
                         <span class="pl-name">${esc(p.name)}</span>
                         <span class="pl-team">${esc(p.team)}</span>
