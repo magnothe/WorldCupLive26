@@ -414,6 +414,181 @@ async function fetchSeason(leagueKey) {
 }
 
 /* ══════════════════════════════
+   Escalação
+
+   {host}/apis/site/v2/sports/soccer/{slug}/summary?event={id}
+   devolve `rosters` — um por time — com:
+     formation                "4-2-3-1"
+     roster[].starter         titular ou banco
+     roster[].jersey          número da camisa
+     roster[].position        G, CD-L, LB, DM, AM-R, F…
+     roster[].subbedIn/Out    entrou / saiu
+     roster[].stats           gols e cartões do jogador NA PARTIDA
+     roster[].athlete         nome, headshot e imagem da camisa
+
+   A escalação só é publicada perto do apito inicial — antes disso `rosters`
+   vem sem a lista de jogadores, e quem trata disso é a interface.
+
+   FOTO — `athlete.headshot` existe para uma minoria dos jogadores (~10% no
+   Brasileirão). Para os demais entra `jerseyImages`, a camisa numerada que a
+   ESPN gera para todo mundo. As duas passam pelo combiner: o PNG original
+   tem 1440px e ~200 KB, e a 96px cai para ~5 KB — 22 jogadores caberiam em
+   4 MB de imagem sem isso.
+══════════════════════════════ */
+
+const LINEUP_TTL = 90 * 1000;          // partida ao vivo troca jogador
+const lineupCache = new Map();         // gameId -> { at, data }
+
+/** Redimensiona uma imagem da ESPN pelo combiner dela. */
+function espnThumb(url, width) {
+    return `https://a.espncdn.com/combiner/i?img=${encodeURIComponent(url)}&w=${width}`;
+}
+
+/**
+ * Linha do jogador no campinho, do gol para o ataque:
+ *   0 goleiro · 1 defesa · 2 meio · 3 meia-atacante · 4 ataque
+ *
+ * A ESPN não diz a que linha da formação o jogador pertence — `formationPlace`
+ * é a posição clássica (1 goleiro, 2 lateral-direito…), não o índice da linha.
+ * Então a linha sai da sigla da posição. A reconstrução bate com a formação
+ * declarada na maioria dos casos; quando não bate (um 4-1-4-1 vira 4-5-1), o
+ * campinho continua correto e o rótulo mostrado é sempre o da ESPN.
+ */
+function pitchRow(abbr) {
+    const a = String(abbr || '').toUpperCase();
+    if (a === 'G' || a === 'GK')        return 0;
+    if (a.startsWith('AM'))             return 3;
+    if (a.includes('M'))                return 2;   // DM, CM, LM, RM, M
+    if (/B$/.test(a) || /^C?D/.test(a)) return 1;   // LB, RB, WB, CD, D
+    return 4;                                       // F, S, LF, RF, CF, W
+}
+
+/**
+ * Abertura do jogador na linha, da esquerda para a direita.
+ *
+ * O prefixo (LB, RM) abre mais que o sufixo (CD-L, CM-R): sem isso, um LB e um
+ * CD-L empatam e o lateral acaba desenhado por dentro do zagueiro.
+ */
+function pitchSide(abbr) {
+    const a = String(abbr || '').toUpperCase();
+    if (/-L$/.test(a)) return -1;
+    if (/-R$/.test(a)) return  1;
+    if (/^L/.test(a))  return -2;
+    if (/^R/.test(a))  return  2;
+    return 0;
+}
+
+/* A ESPN só tem o nome da posição em inglês ("Center Left Defender"), então o
+   rótulo é montado aqui a partir da sigla, que é composicional. */
+const POSITION_PT = {
+    G:  'Goleiro',       GK: 'Goleiro',
+    D:  'Zagueiro',      CD: 'Zagueiro',
+    B:  'Lateral',       WB: 'Ala',
+    DM: 'Volante',       CM: 'Meio-campista',  M: 'Meio-campista',
+    AM: 'Meia-atacante',
+    F:  'Atacante',      CF: 'Atacante',       S: 'Centroavante',  W: 'Ponta',
+    SUB: 'Reserva',
+};
+
+function positionName(abbr) {
+    const a = String(abbr || '').toUpperCase();
+    if (a === 'LB') return 'Lateral-esquerdo';
+    if (a === 'RB') return 'Lateral-direito';
+
+    // tira o lado ("CD-L" → "CD", "LWB" → "WB") para achar a posição base
+    const core = a.replace(/-[LR]$/, '').replace(/^[LR](?=[A-Z])/, '');
+    const base = POSITION_PT[core];
+    if (!base) return '';
+
+    const side = pitchSide(a);
+    if (core === a || !side) return base;
+    return `${base} (${side < 0 ? 'esquerda' : 'direita'})`;
+}
+
+function playerStat(entry, name) {
+    const s = (entry.stats || []).find(x => x.name === name);
+    return s ? Number(s.value) || 0 : 0;
+}
+
+function normalizePlayer(entry) {
+    const a = entry.athlete || {};
+    const images = a.jerseyImages || [];
+    const shirt  = images.find(j => (j.rel || []).includes('dark')) || images[0];
+    const face   = a.headshot && a.headshot.href;
+
+    return {
+        id:        String(a.id || ''),
+        name:      a.displayName || a.shortName || '—',
+        short:     a.shortName || a.displayName || '—',
+        jersey:    entry.jersey || '',
+        pos:       (entry.position && entry.position.abbreviation) || '',
+        posName:   positionName(entry.position && entry.position.abbreviation),
+        row:       pitchRow(entry.position && entry.position.abbreviation),
+        side:      pitchSide(entry.position && entry.position.abbreviation),
+        starter:   !!entry.starter,
+        subbedIn:  !!entry.subbedIn,
+        subbedOut: !!entry.subbedOut,
+        // `real` distingue retrato de camisa — a interface enquadra diferente
+        photo:     face ? espnThumb(face, 120) : shirt ? espnThumb(shirt.href, 96) : '',
+        real:      !!face,
+        goals:     playerStat(entry, 'totalGoals'),
+        assists:   playerStat(entry, 'goalAssists'),
+        yellow:    playerStat(entry, 'yellowCards'),
+        red:       playerStat(entry, 'redCards'),
+    };
+}
+
+function normalizeRoster(node) {
+    const t    = node.team || {};
+    const list = (node.roster || []).map(normalizePlayer);
+
+    // Titulares agrupados por linha; o índice 0 é sempre o goleiro.
+    const lines = [];
+    list.filter(p => p.starter).forEach(p => {
+        (lines[p.row] || (lines[p.row] = [])).push(p);
+    });
+
+    return {
+        teamId:    String(t.id || ''),
+        name:      t.displayName || t.abbreviation || '—',
+        abbr:      t.abbreviation || '',
+        crest:     (t.logos && t.logos[0] && t.logos[0].href)
+                   || (t.id ? `https://a.espncdn.com/i/teamlogos/soccer/500/${t.id}.png` : CREST_FALLBACK),
+        color:     t.color ? `#${t.color}` : '',
+        formation: node.formation || '',
+        rows:      lines.filter(Boolean).map(line =>
+                       line.sort((a, b) => a.side - b.side || a.name.localeCompare(b.name, 'pt-BR'))),
+        bench:     list.filter(p => !p.starter),
+    };
+}
+
+/**
+ * Escalação das duas equipes. Devolve `null` quando a ESPN ainda não publicou
+ * — o que é o normal em partidas que não começaram.
+ */
+async function fetchLineup(leagueKey, gameId) {
+    const cached = lineupCache.get(gameId);
+    if (cached && Date.now() - cached.at < LINEUP_TTL) return cached.data;
+
+    const league = LEAGUE_BY_KEY[leagueKey];
+    const url = `${SCOREBOARD_BASE}/${league.slug}/summary`
+              + `?event=${encodeURIComponent(gameId)}&${cacheBust(60)}`;
+
+    const raw   = await getJSON(url);
+    const sides = {};
+    (raw.rosters || []).forEach(node => {
+        sides[node.homeAway === 'away' ? 'away' : 'home'] = normalizeRoster(node);
+    });
+
+    const empty = !sides.home || !sides.away
+        || (!sides.home.rows.length && !sides.home.bench.length);
+    const data = empty ? null : sides;
+
+    lineupCache.set(gameId, { at: Date.now(), data });
+    return data;
+}
+
+/* ══════════════════════════════
    Classificação
 ══════════════════════════════ */
 

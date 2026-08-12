@@ -58,7 +58,8 @@ if (!TABS.some(t => t.id === activeTab)) activeTab = 'today';
 
 let pageLimit = PAGE_SIZE;
 
-const expanded   = new Set();   // ids de partidas com os lances abertos
+const openPanel  = new Map();   // gameId -> 'detail' | 'lineup'
+const lineups    = new Map();   // gameId -> { loading } | { error } | { data }
 const knownGoals = new Map();   // gameId -> Set(chave do gol)
 let   seeded     = false;       // evita disparar notificações no 1º carregamento
 
@@ -283,7 +284,7 @@ async function selectLeague(key) {
     if (!LEAGUE_BY_KEY[key] || key === activeLeague) return;
     activeLeague = key;
     localStorage.setItem(STORAGE_LEAGUE, key);
-    expanded.clear();
+    openPanel.clear();
     pageLimit = PAGE_SIZE;
 
     document.documentElement.style.setProperty('--accent', LEAGUE_BY_KEY[key].accent);
@@ -349,15 +350,39 @@ function showActiveView() {
    Render
 ══════════════════════════════ */
 
-function toggleMatch(id) {
-    if (expanded.has(id)) expanded.delete(id);
-    else expanded.add(id);
+/**
+ * A escalação é um fetch por partida (~200 KB), então só sai quando o painel
+ * é aberto. O cache fica em api.js; aqui guardamos apenas o estado da tela.
+ */
+async function loadLineup(game) {
+    const cur = lineups.get(game.id);
+    if (cur && (cur.loading || (cur.data && !game.live))) return;
+
+    lineups.set(game.id, { loading: true });
+    scheduleRender();
+    try {
+        lineups.set(game.id, { data: await fetchLineup(game.league, game.id) });
+    } catch (err) {
+        lineups.set(game.id, { error: err.message || String(err) });
+    }
+    scheduleRender();
+}
+
+/** Abre o painel pedido; clicar no botão do painel aberto fecha a partida. */
+function togglePanel(game, mode) {
+    if (openPanel.get(game.id) === mode) {
+        openPanel.delete(game.id);
+    } else {
+        openPanel.set(game.id, mode);
+        if (mode === 'lineup') loadLineup(game);
+    }
     render();
 }
 
 const ctx = {
-    expanded,
-    onToggle: toggleMatch,
+    panelOf:  id => openPanel.get(id) || null,
+    lineupOf: id => lineups.get(id) || null,
+    onToggle: togglePanel,
     pageSize: PAGE_SIZE,
     get limit() { return pageLimit; },
     onMore() { pageLimit += PAGE_SIZE; render(); },

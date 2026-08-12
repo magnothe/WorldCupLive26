@@ -34,6 +34,14 @@ const ICON = {
     chevron: `<svg class="chev" viewBox="0 0 16 16" aria-hidden="true">
                 <path d="M4 6.5 8 10.5l4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>`,
+    shirt: `<svg class="ico" viewBox="0 0 16 16" aria-hidden="true">
+              <path d="M6 2 2.5 4l1.2 3L5 6.5V14h6V6.5L12.3 7l1.2-3L10 2a2 2 0 0 1-4 0z"
+                    fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
+            </svg>`,
+    arrowIn: `<svg class="ico" viewBox="0 0 16 16" aria-hidden="true">
+                <path d="M3 8h8m0 0L8.3 5.3M11 8l-2.7 2.7" fill="none" stroke="currentColor"
+                      stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>`,
 };
 
 /* ══════════════════════════════
@@ -163,13 +171,143 @@ function detailHTML(game) {
 }
 
 /* ══════════════════════════════
+   Partida — escalação
+
+   Cada time ganha um campinho. As linhas vêm prontas da api (`side.rows`,
+   índice 0 = goleiro) e o CSS inverte a coluna: o mandante ataca para cima,
+   o visitante para baixo, como num gráfico de transmissão.
+══════════════════════════════ */
+
+function initials(name) {
+    return String(name || '')
+        .split(/\s+/).filter(Boolean).slice(0, 2)
+        .map(w => w[0]).join('').toUpperCase();
+}
+
+/** Rosto do jogador: retrato quando existe, senão a camisa numerada. */
+function faceHTML(player) {
+    const cls = 'lu-face' + (player.real ? ' is-photo' : ' is-shirt');
+    // Sem a imagem sobram as iniciais — e o selo do número volta a aparecer,
+    // já que a camisa que o trazia não carregou.
+    const img = player.photo
+        ? `<img src="${esc(player.photo)}" alt="" loading="lazy" decoding="async"
+                onerror="var a=this.closest('.lu-avatar'); if(a) a.classList.add('is-bare'); this.remove()">`
+        : '';
+    return `<span class="${cls}"><i>${esc(initials(player.name))}</i>${img}</span>`;
+}
+
+/** Gols e cartões do jogador na partida, em cima da foto. */
+function playerMarksHTML(player) {
+    const marks = [];
+    for (let i = 0; i < player.goals; i++) marks.push(`<span class="lu-mark goal">${ICON.ball}</span>`);
+    if (player.yellow) marks.push(`<span class="lu-mark yellow">${ICON.card}</span>`);
+    if (player.red)    marks.push(`<span class="lu-mark red">${ICON.card}</span>`);
+    if (player.subbedOut) marks.push(`<span class="lu-mark out">${ICON.arrowIn}</span>`);
+    return marks.length ? `<span class="lu-marks">${marks.join('')}</span>` : '';
+}
+
+function pitchPlayerHTML(player) {
+    return `
+        <div class="lu-p" title="${esc(player.name)}${player.posName ? ` · ${esc(player.posName)}` : ''}">
+            <span class="lu-avatar">
+                ${faceHTML(player)}
+                ${player.jersey ? `<span class="lu-num">${esc(player.jersey)}</span>` : ''}
+                ${playerMarksHTML(player)}
+            </span>
+            <span class="lu-pname">${esc(player.short)}</span>
+        </div>`;
+}
+
+function benchPlayerHTML(player) {
+    return `
+        <li class="lu-sub${player.subbedIn ? ' is-in' : ''}" title="${esc(player.name)}">
+            ${faceHTML(player)}
+            <span class="lu-sub-num">${esc(player.jersey || '–')}</span>
+            <span class="lu-sub-name">${esc(player.short)}</span>
+            ${player.subbedIn ? `<span class="lu-in">${ICON.arrowIn}</span>` : ''}
+            ${playerMarksHTML(player)}
+        </li>`;
+}
+
+function pitchHTML(side, isAway) {
+    if (!side.rows.length) return '';
+    const lines = side.rows
+        .map(line => `<div class="lu-line">${line.map(pitchPlayerHTML).join('')}</div>`)
+        .join('');
+    return `<div class="pitch${isAway ? ' is-away' : ''}">${lines}</div>`;
+}
+
+function lineupTeamHTML(side, isAway) {
+    const bench = side.bench.length
+        ? `<div class="lu-bench">
+               <h4 class="lu-bench-head">Banco</h4>
+               <ul class="lu-bench-list">${side.bench.map(benchPlayerHTML).join('')}</ul>
+           </div>`
+        : '';
+
+    return `
+        <section class="lu-team"${side.color ? ` style="--team:${esc(side.color)}"` : ''}>
+            <div class="lu-head">
+                <img class="lu-crest" src="${esc(side.crest)}" onerror="${CREST_ONERROR}" alt=""
+                     loading="lazy" decoding="async" width="18" height="18">
+                <span class="lu-team-name">${esc(side.name)}</span>
+                ${side.formation ? `<span class="lu-form">${esc(side.formation)}</span>` : ''}
+            </div>
+            ${pitchHTML(side, isAway)}
+            ${bench}
+        </section>`;
+}
+
+/** `state` vem do app: { loading } | { error } | { data } — `data` pode ser null. */
+function lineupHTML(game, state) {
+    if (!state || state.loading) {
+        return `<div class="match-detail"><p class="detail-empty">Carregando escalação…</p></div>`;
+    }
+    if (state.error) {
+        return `<div class="match-detail">
+                    <p class="detail-empty is-error">Não deu para carregar a escalação: ${esc(state.error)}</p>
+                </div>`;
+    }
+    if (!state.data) {
+        return `<div class="match-detail"><p class="detail-empty">${
+            game.state === 'pre'
+                ? 'A escalação costuma sair cerca de uma hora antes do apito inicial.'
+                : 'A ESPN não publicou a escalação desta partida.'
+        }</p></div>`;
+    }
+
+    return `
+        <div class="match-detail">
+            <div class="lineup">
+                ${lineupTeamHTML(state.data.home, false)}
+                ${lineupTeamHTML(state.data.away, true)}
+            </div>
+        </div>`;
+}
+
+/* ══════════════════════════════
    Partida — montagem
 ══════════════════════════════ */
 
-function buildMatch(game, isExpanded, onToggle) {
+/** Botão de painel — `mode` é 'detail' (Lances) ou 'lineup' (Escalação). */
+function panelButtonHTML(mode, label, icon, isOpen) {
+    return `
+        <button class="match-more${isOpen ? ' is-on' : ''}" type="button"
+                data-mode="${mode}" aria-expanded="${isOpen}">
+            ${icon}<span>${esc(label)}</span>${ICON.chevron}
+        </button>`;
+}
+
+/**
+ * `ctx.panelOf(id)` devolve 'detail', 'lineup' ou null — só um painel por
+ * partida fica aberto, o mesmo botão fecha o que abriu.
+ */
+function buildMatch(game, ctx) {
     const league = LEAGUE_BY_KEY[game.league];
+    const panel  = ctx.panelOf(game.id);
+
     const node = document.createElement('article');
-    node.className = 'match' + (game.live ? ' is-live' : '') + (isExpanded ? ' is-open' : '');
+    node.className = 'match' + (game.live ? ' is-live' : '') + (panel ? ' is-open' : '');
     node.style.setProperty('--accent', league.accent);
     node.dataset.gameId = game.id;
 
@@ -190,17 +328,18 @@ function buildMatch(game, isExpanded, onToggle) {
         <div class="match-bot">
             ${stateHTML(game)}
             ${cardTallyHTML(game)}
-            ${hasDetail
-                ? `<button class="match-more" type="button" aria-expanded="${isExpanded}">
-                       <span>${isExpanded ? 'Menos' : 'Lances'}</span>${ICON.chevron}
-                   </button>`
-                : ''}
+            <div class="match-actions">
+                ${panelButtonHTML('lineup', 'Escalação', ICON.shirt, panel === 'lineup')}
+                ${hasDetail ? panelButtonHTML('detail', 'Lances', '', panel === 'detail') : ''}
+            </div>
         </div>
 
-        ${isExpanded ? detailHTML(game) : ''}`;
+        ${panel === 'detail' ? detailHTML(game) : ''}
+        ${panel === 'lineup' ? lineupHTML(game, ctx.lineupOf(game.id)) : ''}`;
 
-    const more = node.querySelector('.match-more');
-    if (more) more.addEventListener('click', () => onToggle(game.id));
+    node.querySelectorAll('.match-more').forEach(btn => {
+        btn.addEventListener('click', () => ctx.onToggle(game, btn.dataset.mode));
+    });
 
     return node;
 }
@@ -217,7 +356,7 @@ function renderMatchGrid(games, container, ctx, emptyMsg) {
     }
     const grid = document.createElement('div');
     grid.className = 'match-grid';
-    games.forEach(g => grid.appendChild(buildMatch(g, ctx.expanded.has(g.id), ctx.onToggle)));
+    games.forEach(g => grid.appendChild(buildMatch(g, ctx)));
     container.appendChild(grid);
 }
 
@@ -256,7 +395,7 @@ function renderGroupedByDate(games, container, ctx, ascending) {
         grid.className = 'match-grid';
         dayGames
             .sort((a, b) => a.date - b.date)
-            .forEach(g => grid.appendChild(buildMatch(g, ctx.expanded.has(g.id), ctx.onToggle)));
+            .forEach(g => grid.appendChild(buildMatch(g, ctx)));
 
         group.appendChild(grid);
         frag.appendChild(group);
