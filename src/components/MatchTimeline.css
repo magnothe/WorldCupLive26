@@ -1,0 +1,53 @@
+/* ──────────────────────────────────────────────
+   MatchTimeline.css — Lances da partida e ficha técnica
+   ────────────────────────────────────────────── */
+
+.timeline { list-style: none; display: flex; flex-direction: column; gap: 1px; }
+
+.tl-item {
+    display: grid;
+    grid-template-columns: 38px 16px 1fr 18px;
+    align-items: center;
+    gap: 9px;
+    padding: 5px 0;
+    font-size: 0.78rem;
+    color: var(--text-2);
+}
+.tl-item + .tl-item { border-top: 1px solid rgba(255,255,255,0.03); }
+
+.tl-min {
+    font-size: 0.68rem;
+    color: var(--text-3);
+    text-align: right;
+}
+.tl-ico { display: flex; }
+.tl-item.goal   .tl-ico { color: var(--text); }
+.tl-item.yellow .tl-ico { color: var(--yellow); }
+.tl-item.red    .tl-ico { color: var(--red); }
+.tl-item.goal .tl-text { color: var(--text); font-weight: 500; }
+
+.tl-extra {
+    font-size: 0.68rem;
+    color: var(--text-3);
+    margin-left: 4px;
+}
+.tl-text .swap { color: var(--text-3); margin: 0 2px; }
+.tl-badge { width: 16px; height: 16px; object-fit: contain; opacity: 0.75; }
+
+.facts {
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid var(--line-soft);
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px 18px;
+}
+.facts dt {
+    font-size: 0.6rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-3);
+    margin-bottom: 2px;
+}
+.facts dd { font-size: 0.76rem; color: var(--text-2); }

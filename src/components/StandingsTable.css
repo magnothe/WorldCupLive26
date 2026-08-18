@@ -1,0 +1,50 @@
+/* ──────────────────────────────────────────────
+   StandingsTable.css — Classificação e legenda das zonas
+   ────────────────────────────────────────────── */
+
+.standings-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(440px, 1fr));
+    gap: 16px;
+}
+.standings-grid.single { grid-template-columns: minmax(0, 780px); }
+.standings-table { min-width: 460px; }
+
+.st-pos {
+    width: 34px;
+    font-size: 0.72rem;
+    color: var(--text-3);
+    border-left: 2px solid transparent;
+}
+.st-pos.zone-champions  { border-left-color: var(--green); color: var(--green); }
+.st-pos.zone-prelib     { border-left-color: #2f9e8f;      color: #47b3a4;      }
+.st-pos.zone-secondary  { border-left-color: #4d8df6;      color: #6ea3f8;      }
+.st-pos.zone-relegation { border-left-color: var(--red);   color: #ef7478;      }
+
+.st-team { display: flex; align-items: center; gap: 9px; min-width: 170px; }
+.st-badge { width: 20px; height: 20px; object-fit: contain; flex-shrink: 0; }
+.st-name { color: var(--text); font-weight: 500; }
+.st-pts { color: var(--text); font-weight: 700; }
+.num-soft { color: var(--text-3); }
+.st-gd.pos { color: var(--green); }
+.st-gd.neg { color: #ef7478; }
+
+.legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 20px;
+    margin-top: 16px;
+    font-size: 0.72rem;
+    color: var(--text-3);
+}
+.legend-item { display: inline-flex; align-items: center; gap: 7px; }
+.legend i { width: 9px; height: 2px; flex-shrink: 0; }
+.legend i.zone-champions  { background: var(--green); }
+.legend i.zone-prelib     { background: #2f9e8f; }
+.legend i.zone-secondary  { background: #4d8df6; }
+.legend i.zone-relegation { background: var(--red); }
+
+@media (max-width: 720px) {
+    .standings-grid,
+    .standings-grid.single { grid-template-columns: 1fr; }
+}

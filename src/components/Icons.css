@@ -1,0 +1,4 @@
+/* Icons.css — tamanho padrão dos ícones SVG inline */
+
+.ico { width: 12px; height: 12px; display: block; }
+.chev { width: 13px; height: 13px; transition: transform 0.18s; }

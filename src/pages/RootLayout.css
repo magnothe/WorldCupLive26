@@ -1,0 +1,9 @@
+/* RootLayout.css — rodapé do site (a casca em si usa .shell, de base.css) */
+
+.site-footer {
+    border-top: 1px solid var(--line-soft);
+    padding: 22px 0 34px;
+    font-size: 0.72rem;
+    color: var(--text-3);
+}
+.site-footer strong { color: var(--text-2); font-weight: 500; }

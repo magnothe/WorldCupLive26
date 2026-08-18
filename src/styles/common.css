@@ -1,0 +1,91 @@
+/* ──────────────────────────────────────────────
+   common.css — Peças reaproveitadas por várias telas
+
+   Painel, tabela, estado vazio e o selo de situação da partida aparecem em
+   mais de um componente — por isso não moram em nenhum deles.
+   ────────────────────────────────────────────── */
+
+/* ── Painel e tabela ── */
+.panel {
+    background: var(--surface);
+    border: 1px solid var(--line-soft);
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+.panel.narrow { max-width: 620px; }
+.panel-head {
+    padding: 13px 18px;
+    font-size: 0.66rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-2);
+    border-bottom: 1px solid var(--line-soft);
+}
+
+.scroll-x { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+.table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.82rem;
+}
+.table thead th {
+    padding: 9px 8px;
+    text-align: center;
+    font-size: 0.6rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-3);
+    border-bottom: 1px solid var(--line-soft);
+    white-space: nowrap;
+}
+.table thead th.col-team,
+.table thead th.col-player { text-align: left; padding-left: 14px; }
+.table tbody td {
+    padding: 9px 8px;
+    text-align: center;
+    color: var(--text-2);
+    white-space: nowrap;
+    border-bottom: 1px solid rgba(255,255,255,0.035);
+}
+.table tbody tr:last-child td { border-bottom: none; }
+.table tbody tr:hover td { background: rgba(255,255,255,0.025); }
+.table tbody td.col-team,
+.table tbody td.col-player { text-align: left; padding-left: 14px; }
+
+/* ── Situação da partida (cartão e tela da partida) ── */
+.state { color: var(--text-3); }
+.state.live {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--red);
+    font-weight: 600;
+}
+.state.live i {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    animation: pulse 1.8s ease-in-out infinite;
+}
+
+/* ── Estados vazios e notas ── */
+.empty {
+    padding: 54px 20px;
+    text-align: center;
+    font-size: 0.86rem;
+    color: var(--text-3);
+    border: 1px dashed var(--line-soft);
+    border-radius: var(--radius);
+}
+.empty.is-error { color: #ef7478; border-color: rgba(229,72,77,0.28); }
+
+.note {
+    margin-top: 14px;
+    max-width: 620px;
+    font-size: 0.72rem;
+    color: var(--text-3);
+    line-height: 1.6;
+}

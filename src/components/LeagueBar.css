@@ -1,0 +1,75 @@
+/* LeagueBar.css — barra de campeonatos, grudada no topo */
+
+.league-bar {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background: rgba(10,10,11,0.88);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border-bottom: 1px solid var(--line-soft);
+}
+.league-bar-inner {
+    display: flex;
+    align-items: center;
+    gap: 26px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding-top: 10px;
+    padding-bottom: 10px;
+}
+.league-bar-inner::-webkit-scrollbar { display: none; }
+
+.league-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+}
+.league-group + .league-group { border-left: 1px solid var(--line-soft); padding-left: 26px; }
+
+.league-group-name {
+    font-size: 0.6rem;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--text-3);
+    margin-right: 8px;
+    white-space: nowrap;
+}
+
+.league-btn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 7px 11px;
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: var(--text-2);
+    white-space: nowrap;
+    border-radius: 7px;
+    transition: color 0.15s, background 0.15s;
+}
+.league-btn:hover { color: var(--text); background: rgba(255,255,255,0.04); }
+.league-btn.active { color: var(--text); font-weight: 650; }
+/* cada botão traz o próprio --accent, então o traço sai na cor da liga */
+.league-btn.active::after {
+    content: '';
+    position: absolute;
+    left: 11px; right: 11px; bottom: -11px;
+    height: 2px;
+    background: var(--accent);
+}
+
+.live-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--red);
+    animation: pulse 1.8s ease-in-out infinite;
+}
+
+@media (max-width: 720px) {
+    .league-bar-inner { gap: 18px; }
+    .league-group + .league-group { padding-left: 18px; }
+}

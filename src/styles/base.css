@@ -1,0 +1,90 @@
+/* ──────────────────────────────────────────────
+   base.css — Reset, variáveis e o esqueleto da página
+
+   Direção: editorial escuro. Fundo liso, tipografia como protagonista,
+   uma única cor de acento por campeonato usada com parcimônia.
+   Sem gradiente decorativo, sem glow, sem emoji.
+
+   Só entra aqui o que vale para o site inteiro. Estilo de componente mora
+   no arquivo do componente.
+   ────────────────────────────────────────────── */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+    --bg:        #0a0a0b;
+    --surface:   #121214;
+    --surface-2: #1a1a1d;
+
+    --line:      rgba(255,255,255,0.10);
+    --line-soft: rgba(255,255,255,0.055);
+
+    --text:   #ededef;
+    --text-2: rgba(237,237,239,0.60);
+    --text-3: rgba(237,237,239,0.34);
+
+    --green:  #30a46c;
+    --red:    #e5484d;
+    --yellow: #e2b53c;
+
+    /* cor do campeonato ativo — trocada pelo LeagueDataContext */
+    --accent: #29c46a;
+
+    --shell:  1160px;
+    --radius: 10px;
+}
+
+html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+}
+
+body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', -apple-system, 'Segoe UI', sans-serif;
+    font-size: 16px;
+    line-height: 1.5;
+    font-feature-settings: 'cv05' 1, 'ss01' 1;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+}
+
+#root {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+a { color: inherit; text-decoration: none; }
+button { font: inherit; color: inherit; background: none; border: none; cursor: pointer; }
+
+/* ── Faixa central ── */
+.shell {
+    width: 100%;
+    max-width: var(--shell);
+    margin: 0 auto;
+    padding: 0 24px;
+}
+main.shell { flex: 1; padding-bottom: 96px; }
+
+.num, .t-score, .tl-min, table td, table th { font-variant-numeric: tabular-nums; }
+
+/* ── Animações usadas por vários componentes ── */
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+@keyframes reveal {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: none; }
+}
+
+@media (max-width: 720px) {
+    .shell { padding: 0 16px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
