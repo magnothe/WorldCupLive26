@@ -1,0 +1,16 @@
+/* ──────────────────────────────────────────────
+   detail.css — Moldura dos painéis de partida
+
+   Compartilhada pelos dois painéis: lances (MatchTimeline) e escalação
+   (Lineup). Só a moldura e a mensagem de vazio; o conteúdo é de cada um.
+   ────────────────────────────────────────────── */
+
+.match-detail {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--line-soft);
+    animation: reveal 0.2s ease both;
+}
+
+.detail-empty { font-size: 0.78rem; color: var(--text-3); }
+.detail-empty.is-error { color: #ef7478; }

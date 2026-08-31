@@ -1,221 +1,36 @@
-/* ══════════════════════════════════════════════
-   api.js — Camada de dados (ESPN)
+/* ──────────────────────────────────────────────
+   espn.js — Camada de dados (ESPN)
 
    API escolhida: ESPN hidden/public soccer API.
      • Sem chave, sem cadastro, sem limite de requisições
      • Cobre Brasileirão A/B/C e as cinco grandes ligas europeias
      • Já devolve os ESCUDOS dos times na própria resposta
-       (competitor.team.logo → https://a.espncdn.com/i/teamlogos/soccer/500/{id}.png)
-     • Traz os lances da partida em `competitions[0].details`:
-       gols, cartões e substituições, com jogador e minuto
-
-   Endpoints usados:
-     Jogos       {host}/apis/site/v2/sports/soccer/{slug}/scoreboard?dates=YYYYMMDD-YYYYMMDD
-     Classific.  {host}/apis/v2/sports/soccer/{slug}/standings
+     • Traz os lances da partida em `competitions[0].details`
 
    IMPORTANTE — host: use `site.web.api.espn.com`, e NÃO `site.api.espn.com`.
    Os dois servem exatamente os mesmos caminhos, mas `site.api.espn.com` não
    devolve `Access-Control-Allow-Origin` para requisições vindas do navegador,
    o que faz todo fetch falhar com erro de CORS.
-   ══════════════════════════════════════════════ */
+   ────────────────────────────────────────────── */
+
+import { CREST_FALLBACK, LEAGUE_BY_KEY } from './leagues.js';
+import { brDateKey, brTime, espnDate, seasonWindow } from './dates.js';
 
 const ESPN_HOST       = 'https://site.web.api.espn.com';
 const SCOREBOARD_BASE = `${ESPN_HOST}/apis/site/v2/sports/soccer`;
 const STANDINGS_BASE  = `${ESPN_HOST}/apis/v2/sports/soccer`;
 
-const TZ = 'America/Sao_Paulo';
-
-/* Escudo genérico (SVG inline) para quando a API não devolve logo */
-const CREST_FALLBACK =
-    'data:image/svg+xml;utf8,' + encodeURIComponent(
-        `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-           <path d="M32 5 9 13v20c0 13.5 9.4 22.3 23 25 13.6-2.7 23-11.5 23-25V13L32 5z"
-                 fill="none" stroke="rgba(255,255,255,0.22)" stroke-width="2.5"/>
-         </svg>`
-    );
-
-/* ══════════════════════════════
-   Campeonatos
-
-   `season: 'year'`  → temporada = ano civil (Brasil, jan–dez)
-   `season: 'cross'` → temporada cruza o ano (Europa, ago–mai)
-
-   As zonas de rebaixamento são declaradas pelo tamanho (`from`/`to` a partir
-   do topo), mas ancoradas no FIM da tabela na hora de pintar — assim a mesma
-   configuração serve para tabelas de 18 e de 20 times.
-══════════════════════════════ */
-
-const LEAGUES = [
-    /* ── Brasil ── */
-    {
-        key: 'bra1', slug: 'bra.1', group: 'Brasil',
-        label: 'Brasileirão Série A', short: 'Série A',
-        accent: '#29c46a', season: 'year',
-        zones: [
-            { from: 1,  to: 4,  cls: 'zone-champions',    label: 'Libertadores (fase de grupos)' },
-            { from: 5,  to: 6,  cls: 'zone-prelib',       label: 'Pré-Libertadores'              },
-            { from: 7,  to: 12, cls: 'zone-secondary',    label: 'Sul-Americana'                 },
-            { from: 17, to: 20, cls: 'zone-relegation',   label: 'Rebaixamento'                  },
-        ],
-    },
-    {
-        key: 'bra2', slug: 'bra.2', group: 'Brasil',
-        label: 'Brasileirão Série B', short: 'Série B',
-        accent: '#4d8df6', season: 'year',
-        zones: [
-            { from: 1,  to: 4,  cls: 'zone-champions',  label: 'Acesso à Série A' },
-            { from: 17, to: 20, cls: 'zone-relegation', label: 'Rebaixamento'     },
-        ],
-    },
-    {
-        key: 'bra3', slug: 'bra.3', group: 'Brasil',
-        label: 'Brasileirão Série C', short: 'Série C',
-        accent: '#e0a33a', season: 'year',
-        zones: [
-            { from: 1,  to: 4,  cls: 'zone-champions',  label: 'Classificado' },
-            { from: 17, to: 20, cls: 'zone-relegation', label: 'Rebaixamento' },
-        ],
-        groupZones: [
-            { from: 1, to: 2, cls: 'zone-champions', label: 'Classificado' },
-        ],
-    },
-
-    /* ── Europa ── */
-    {
-        key: 'eng1', slug: 'eng.1', group: 'Europa',
-        label: 'Premier League', short: 'Premier',
-        accent: '#8b5cf6', season: 'cross',
-        zones: [
-            { from: 1,  to: 5,  cls: 'zone-champions',  label: 'Champions League' },
-            { from: 6,  to: 7,  cls: 'zone-secondary',  label: 'Europa League'    },
-            { from: 18, to: 20, cls: 'zone-relegation', label: 'Rebaixamento'     },
-        ],
-    },
-    {
-        key: 'esp1', slug: 'esp.1', group: 'Europa',
-        label: 'La Liga', short: 'La Liga',
-        accent: '#e4572e', season: 'cross',
-        zones: [
-            { from: 1,  to: 5,  cls: 'zone-champions',  label: 'Champions League' },
-            { from: 6,  to: 7,  cls: 'zone-secondary',  label: 'Europa League'    },
-            { from: 18, to: 20, cls: 'zone-relegation', label: 'Rebaixamento'     },
-        ],
-    },
-    {
-        key: 'ita1', slug: 'ita.1', group: 'Europa',
-        label: 'Serie A', short: 'Serie A',
-        accent: '#2bb3a3', season: 'cross',
-        zones: [
-            { from: 1,  to: 4,  cls: 'zone-champions',  label: 'Champions League' },
-            { from: 5,  to: 6,  cls: 'zone-secondary',  label: 'Europa League'    },
-            { from: 18, to: 20, cls: 'zone-relegation', label: 'Rebaixamento'     },
-        ],
-    },
-    {
-        key: 'ger1', slug: 'ger.1', group: 'Europa',
-        label: 'Bundesliga', short: 'Bundesliga',
-        accent: '#e03131', season: 'cross',
-        zones: [
-            { from: 1,  to: 4,  cls: 'zone-champions',  label: 'Champions League' },
-            { from: 5,  to: 6,  cls: 'zone-secondary',  label: 'Europa League'    },
-            { from: 17, to: 18, cls: 'zone-relegation', label: 'Rebaixamento'     },
-        ],
-    },
-    {
-        key: 'fra1', slug: 'fra.1', group: 'Europa',
-        label: 'Ligue 1', short: 'Ligue 1',
-        accent: '#4361ee', season: 'cross',
-        zones: [
-            { from: 1,  to: 4,  cls: 'zone-champions',  label: 'Champions League' },
-            { from: 5,  to: 6,  cls: 'zone-secondary',  label: 'Europa League'    },
-            { from: 17, to: 18, cls: 'zone-relegation', label: 'Rebaixamento'     },
-        ],
-    },
-];
-
-const LEAGUE_BY_KEY = Object.fromEntries(LEAGUES.map(l => [l.key, l]));
-
-/** [{ name: 'Brasil', leagues: [...] }, { name: 'Europa', leagues: [...] }] */
-const LEAGUE_GROUPS = LEAGUES.reduce((acc, league) => {
-    let g = acc.find(x => x.name === league.group);
-    if (!g) acc.push(g = { name: league.group, leagues: [] });
-    g.leagues.push(league);
-    return acc;
-}, []);
-
-/* ══════════════════════════════
-   Helpers de data (fuso de Brasília)
-══════════════════════════════ */
-
-/* Construir um Intl.DateTimeFormat é caro (~0,1 ms). Uma temporada tem 380
-   partidas e cada uma precisa de data + hora — criar os formatadores dentro
-   da função custava ~760 construções por liga carregada. Criados uma vez. */
-const FMT_DATE_KEY = new Intl.DateTimeFormat('en-CA', {
-    timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit',
-});
-const FMT_TIME = new Intl.DateTimeFormat('pt-BR', {
-    timeZone: TZ, hour: '2-digit', minute: '2-digit', hour12: false,
-});
-const FMT_DATE_LABEL = new Intl.DateTimeFormat('pt-BR', {
-    timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-});
-
-/** "2026-08-11" na timezone de Brasília, a partir de um Date. */
-function brDateKey(date) {
-    // en-CA já formata como YYYY-MM-DD, então não é preciso remontar as partes
-    return FMT_DATE_KEY.format(date);
-}
-
-/** "HH:MM" no fuso de Brasília. */
-function brTime(date) {
-    return FMT_TIME.format(date);
-}
-
-/** "segunda-feira, 11 de agosto de 2026" a partir de uma chave "YYYY-MM-DD". */
-const dateLabelCache = new Map();
-function brDateLabel(key) {
-    let label = dateLabelCache.get(key);
-    if (label) return label;
-
-    const [y, m, d] = key.split('-').map(Number);
-    label = FMT_DATE_LABEL.format(new Date(Date.UTC(y, m - 1, d, 12)));
-    dateLabelCache.set(key, label);
-    return label;
-}
-
-/** "YYYYMMDD" — formato aceito pelo parâmetro `dates` da ESPN. */
-function espnDate(key) {
-    return key.replace(/-/g, '');
-}
-
-/**
- * Intervalo de datas da temporada. `back = 1` devolve a temporada anterior.
- * Ligas europeias começam em julho e terminam em junho do ano seguinte.
- */
-function seasonWindow(league, back) {
-    const now  = new Date();
-    const step = back || 0;
-
-    if (league.season === 'cross') {
-        const startYear = (now.getMonth() >= 6 ? now.getFullYear() : now.getFullYear() - 1) - step;
-        return { from: `${startYear}-07-01`, to: `${startYear + 1}-06-30`, year: startYear };
-    }
-
-    const y = now.getFullYear() - step;
-    return { from: `${y}-01-01`, to: `${y}-12-31`, year: y };
-}
-
-/* ══════════════════════════════
+/* ──────────────────────────────
    Lances da partida (details)
 
-   Cada item de `competitions[0].details` é um lance. Os campos que interessam:
+   Cada item de `competitions[0].details` é um lance:
      scoringPlay  → gol            ownGoal / penaltyKick qualificam
      yellowCard   → amarelo        amarelo + vermelho = segundo amarelo
      redCard      → vermelho
      substitution → substituição
-══════════════════════════════ */
+────────────────────────────── */
 
-/** "45'+2" → 45.02, para ordenar a linha do tempo sem perder os acréscimos. */
+/** "45+2" vira 45.02, para ordenar a linha do tempo sem perder os acréscimos. */
 function minuteValue(text) {
     const m = String(text || '').match(/(\d+)(?:\s*\+\s*(\d+))?/);
     if (!m) return 999;
@@ -229,9 +44,9 @@ function athlete(detail, index) {
 
 function detailBase(detail) {
     return {
-        teamId:  String((detail.team && detail.team.id) || ''),
-        minute:  (detail.clock && detail.clock.displayValue) || '',
-        order:   minuteValue(detail.clock && detail.clock.displayValue),
+        teamId: String((detail.team && detail.team.id) || ''),
+        minute: (detail.clock && detail.clock.displayValue) || '',
+        order:  minuteValue(detail.clock && detail.clock.displayValue),
     };
 }
 
@@ -279,9 +94,9 @@ function normalizeSubs(competition) {
         .filter(Boolean);
 }
 
-/* ══════════════════════════════
+/* ──────────────────────────────
    Normalização das partidas
-══════════════════════════════ */
+────────────────────────────── */
 
 function normalizeSide(competitor) {
     const t = competitor.team || {};
@@ -312,10 +127,6 @@ function normalizeEvent(ev, leagueKey) {
     const note   = (comp.notes && comp.notes[0] && comp.notes[0].headline) || '';
     const ref    = (comp.officials || []).find(o => !o.order || o.order === 1);
 
-    const goals = normalizeGoals(comp);
-    const cards = normalizeCards(comp);
-    const subs  = normalizeSubs(comp);
-
     return {
         id:       String(ev.id),
         league:   leagueKey,
@@ -331,12 +142,12 @@ function normalizeEvent(ev, leagueKey) {
         venue:    venue.fullName || '',
         city:     (venue.address && venue.address.city) || '',
         attendance: comp.attendance || 0,
-        referee:  (ref && (ref.displayName || (ref.fullName))) || '',
+        referee:  (ref && (ref.displayName || ref.fullName)) || '',
         home:     normalizeSide(home),
         away:     normalizeSide(away),
-        goals,
-        cards,
-        subs,
+        goals:    normalizeGoals(comp),
+        cards:    normalizeCards(comp),
+        subs:     normalizeSubs(comp),
         // A linha do tempo só aparece quando o usuário abre "Lances". Ordenar
         // 380 partidas × N lances no carregamento era trabalho jogado fora.
         timeline: null,
@@ -344,7 +155,7 @@ function normalizeEvent(ev, leagueKey) {
 }
 
 /** Lances da partida em ordem cronológica. Montada na primeira chamada. */
-function matchTimeline(game) {
+export function matchTimeline(game) {
     if (!game.timeline) {
         game.timeline = [...game.goals, ...game.cards, ...game.subs]
             .sort((a, b) => a.order - b.order);
@@ -353,14 +164,14 @@ function matchTimeline(game) {
 }
 
 /** Há algo para mostrar no painel de detalhe? */
-function hasMatchDetail(game) {
+export function hasMatchDetail(game) {
     return game.goals.length > 0 || game.cards.length > 0 || game.subs.length > 0
         || !!game.venue || !!game.referee;
 }
 
-/* ══════════════════════════════
+/* ──────────────────────────────
    Fetch
-══════════════════════════════ */
+────────────────────────────── */
 
 /** Faz a URL variar a cada N segundos, evitando resposta cacheada pelo CDN. */
 function cacheBust(seconds) {
@@ -377,7 +188,7 @@ async function getJSON(url) {
  * Partidas de um campeonato num intervalo de datas (chaves "YYYY-MM-DD").
  * Sem `from`/`to` a ESPN devolve apenas a rodada corrente.
  */
-async function fetchGames(leagueKey, from, to, bustSeconds) {
+export async function fetchGames(leagueKey, from, to, bustSeconds) {
     const league = LEAGUE_BY_KEY[leagueKey];
     // `limit` é obrigatório: sem ele a ESPN corta a resposta em 100 partidas.
     let url = `${SCOREBOARD_BASE}/${league.slug}/scoreboard?limit=1000&${cacheBust(bustSeconds || 20)}`;
@@ -394,47 +205,37 @@ async function fetchGames(leagueKey, from, to, bustSeconds) {
  * Temporada inteira. Quando a temporada corrente ainda não tem tabela
  * publicada (Série C fora de época, Europa em julho), cai para a anterior.
  */
-async function fetchSeason(leagueKey) {
+export async function fetchSeason(leagueKey) {
     const league = LEAGUE_BY_KEY[leagueKey];
 
     // A resposta passa de 4 MB. Cache-bust longo (10 min) para que recarregar
     // a página ou voltar para a liga reaproveite o cache do CDN e do navegador.
     const SEASON_BUST = 600;
 
-    const now  = seasonWindow(league);
+    const now   = seasonWindow(league);
     const games = await fetchGames(leagueKey, now.from, now.to, SEASON_BUST);
     if (games.length) return games;
 
     const prev = seasonWindow(league, 1);
     try {
         return await fetchGames(leagueKey, prev.from, prev.to, SEASON_BUST);
-    } catch (e) {
+    } catch {
         return games;
     }
 }
 
-/* ══════════════════════════════
+/* ──────────────────────────────
    Escalação
 
    {host}/apis/site/v2/sports/soccer/{slug}/summary?event={id}
-   devolve `rosters` — um por time — com:
-     formation                "4-2-3-1"
-     roster[].starter         titular ou banco
-     roster[].jersey          número da camisa
-     roster[].position        G, CD-L, LB, DM, AM-R, F…
-     roster[].subbedIn/Out    entrou / saiu
-     roster[].stats           gols e cartões do jogador NA PARTIDA
-     roster[].athlete         nome, headshot e imagem da camisa
-
-   A escalação só é publicada perto do apito inicial — antes disso `rosters`
-   vem sem a lista de jogadores, e quem trata disso é a interface.
+   devolve `rosters` — um por time — com formação, titulares, banco, número
+   da camisa, posição, entradas/saídas, gols e cartões na partida.
 
    FOTO — `athlete.headshot` existe para uma minoria dos jogadores (~10% no
    Brasileirão). Para os demais entra `jerseyImages`, a camisa numerada que a
    ESPN gera para todo mundo. As duas passam pelo combiner: o PNG original
-   tem 1440px e ~200 KB, e a 96px cai para ~5 KB — 22 jogadores caberiam em
-   4 MB de imagem sem isso.
-══════════════════════════════ */
+   tem 1440px e ~200 KB, e a 96px cai para ~5 KB.
+────────────────────────────── */
 
 const LINEUP_TTL = 90 * 1000;          // partida ao vivo troca jogador
 const lineupCache = new Map();         // gameId -> { at, data }
@@ -448,11 +249,9 @@ function espnThumb(url, width) {
  * Linha do jogador no campinho, do gol para o ataque:
  *   0 goleiro · 1 defesa · 2 meio · 3 meia-atacante · 4 ataque
  *
- * A ESPN não diz a que linha da formação o jogador pertence — `formationPlace`
- * é a posição clássica (1 goleiro, 2 lateral-direito…), não o índice da linha.
- * Então a linha sai da sigla da posição. A reconstrução bate com a formação
- * declarada na maioria dos casos; quando não bate (um 4-1-4-1 vira 4-5-1), o
- * campinho continua correto e o rótulo mostrado é sempre o da ESPN.
+ * A ESPN não diz a que linha da formação o jogador pertence — então a linha
+ * sai da sigla da posição. Quando a reconstrução não bate com a formação
+ * declarada, o campinho continua correto e o rótulo é sempre o da ESPN.
  */
 function pitchRow(abbr) {
     const a = String(abbr || '').toUpperCase();
@@ -495,7 +294,7 @@ function positionName(abbr) {
     if (a === 'LB') return 'Lateral-esquerdo';
     if (a === 'RB') return 'Lateral-direito';
 
-    // tira o lado ("CD-L" → "CD", "LWB" → "WB") para achar a posição base
+    // tira o lado ("CD-L" vira "CD", "LWB" vira "WB") para achar a posição base
     const core = a.replace(/-[LR]$/, '').replace(/^[LR](?=[A-Z])/, '');
     const base = POSITION_PT[core];
     if (!base) return '';
@@ -566,7 +365,7 @@ function normalizeRoster(node) {
  * Escalação das duas equipes. Devolve `null` quando a ESPN ainda não publicou
  * — o que é o normal em partidas que não começaram.
  */
-async function fetchLineup(leagueKey, gameId) {
+export async function fetchLineup(leagueKey, gameId) {
     const cached = lineupCache.get(gameId);
     if (cached && Date.now() - cached.at < LINEUP_TTL) return cached.data;
 
@@ -588,9 +387,9 @@ async function fetchLineup(leagueKey, gameId) {
     return data;
 }
 
-/* ══════════════════════════════
+/* ──────────────────────────────
    Classificação
-══════════════════════════════ */
+────────────────────────────── */
 
 function statValue(entry, name) {
     const s = (entry.stats || []).find(x => x.name === name);
@@ -604,19 +403,19 @@ function normalizeEntry(entry) {
     const crest = (t.logos && t.logos[0] && t.logos[0].href)
         || (t.id ? `https://a.espncdn.com/i/teamlogos/soccer/500/${t.id}.png` : CREST_FALLBACK);
     return {
-        id:    String(t.id || ''),
-        name:  t.displayName || t.name || '—',
-        abbr:  t.abbreviation || '',
+        id:   String(t.id || ''),
+        name: t.displayName || t.name || '—',
+        abbr: t.abbreviation || '',
         crest,
-        pts:   statValue(entry, 'points'),
-        mp:    statValue(entry, 'gamesPlayed'),
-        w:     statValue(entry, 'wins'),
-        d:     statValue(entry, 'ties'),
-        l:     statValue(entry, 'losses'),
-        gf:    statValue(entry, 'pointsFor'),
-        ga:    statValue(entry, 'pointsAgainst'),
-        gd:    statValue(entry, 'pointDifferential'),
-        rank:  statValue(entry, 'rank'),
+        pts:  statValue(entry, 'points'),
+        mp:   statValue(entry, 'gamesPlayed'),
+        w:    statValue(entry, 'wins'),
+        d:    statValue(entry, 'ties'),
+        l:    statValue(entry, 'losses'),
+        gf:   statValue(entry, 'pointsFor'),
+        ga:   statValue(entry, 'pointsAgainst'),
+        gd:   statValue(entry, 'pointDifferential'),
+        rank: statValue(entry, 'rank'),
     };
 }
 
@@ -639,7 +438,7 @@ function flattenStandings(node, out, inheritedName) {
  * Classificação de um campeonato. A ESPN às vezes só publica a tabela da
  * temporada anterior (fora de época) — por isso o fallback.
  */
-async function fetchStandings(leagueKey) {
+export async function fetchStandings(leagueKey) {
     const league = LEAGUE_BY_KEY[leagueKey];
     const bust   = cacheBust(120);
 
@@ -651,84 +450,9 @@ async function fetchStandings(leagueKey) {
         try {
             const tables = flattenStandings(await getJSON(url), []);
             if (tables.length) return tables;
-        } catch (e) {
+        } catch {
             /* tenta a próxima */
         }
     }
     return [];
-}
-
-/* ══════════════════════════════
-   Artilharia (derivada dos gols das partidas)
-══════════════════════════════ */
-
-function computeTopScorers(games) {
-    const map = new Map();
-
-    games.forEach(game => {
-        if (game.state === 'pre') return;
-        const teamById = { [game.home.id]: game.home, [game.away.id]: game.away };
-
-        game.goals.forEach(goal => {
-            if (goal.ownGoal) return;                 // gol contra não conta para o artilheiro
-            const team = teamById[goal.teamId];
-            if (!team) return;
-
-            const key = goal.playerId
-                ? `id:${goal.playerId}`
-                : `n:${goal.player.toLowerCase()}|${team.id}`;
-
-            const cur = map.get(key);
-            if (cur) {
-                cur.goals++;
-                cur.pens += goal.penalty ? 1 : 0;
-            } else {
-                map.set(key, {
-                    name:  goal.player,
-                    team:  team.name,
-                    crest: team.crest,
-                    goals: 1,
-                    pens:  goal.penalty ? 1 : 0,
-                });
-            }
-        });
-    });
-
-    return [...map.values()]
-        .sort((a, b) => b.goals - a.goals || a.name.localeCompare(b.name, 'pt-BR'));
-}
-
-/* ══════════════════════════════
-   Disciplina (derivada dos cartões das partidas)
-══════════════════════════════ */
-
-function computeCardLeaders(games) {
-    const map = new Map();
-
-    games.forEach(game => {
-        if (game.state === 'pre') return;
-        const teamById = { [game.home.id]: game.home, [game.away.id]: game.away };
-
-        game.cards.forEach(card => {
-            const team = teamById[card.teamId];
-            if (!team) return;
-
-            const key = card.playerId
-                ? `id:${card.playerId}`
-                : `n:${card.player.toLowerCase()}|${team.id}`;
-
-            let cur = map.get(key);
-            if (!cur) {
-                cur = { name: card.player, team: team.name, crest: team.crest, yellow: 0, red: 0 };
-                map.set(key, cur);
-            }
-            if (card.kind === 'yellow') cur.yellow++;
-            else cur.red++;                            // vermelho direto ou segundo amarelo
-        });
-    });
-
-    return [...map.values()]
-        .sort((a, b) => (b.red * 2 + b.yellow) - (a.red * 2 + a.yellow)
-            || b.red - a.red
-            || a.name.localeCompare(b.name, 'pt-BR'));
 }

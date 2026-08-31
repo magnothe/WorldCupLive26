@@ -1,0 +1,137 @@
+/* ──────────────────────────────────────────────
+   MatchCard.css — Cartão de uma partida
+
+   O bloco dos times é um link para a tela da partida; o rodapé leva direto
+   para o painel de lances ou de escalação.
+   ────────────────────────────────────────────── */
+
+.match {
+    position: relative;
+    background: var(--surface);
+    border: 1px solid var(--line-soft);
+    border-radius: var(--radius);
+    padding: 15px 17px 12px;
+    transition: border-color 0.16s, background 0.16s;
+}
+.match:hover { border-color: var(--line); }
+.match.is-live { border-color: rgba(229,72,77,0.32); }
+
+.match-top {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    font-size: 0.64rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 14px;
+}
+.match-comp { color: var(--accent); }
+.match-note {
+    color: var(--text-3);
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    text-transform: none;
+    font-size: 0.68rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.match-when { margin-left: auto; color: var(--text-3); }
+
+/* ── Linhas de time ── */
+.match-rows { display: flex; flex-direction: column; gap: 10px; }
+
+.t-row {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+}
+.t-badge {
+    width: 26px; height: 26px;
+    object-fit: contain;
+    flex-shrink: 0;
+}
+.t-main { flex: 1; min-width: 0; }
+.t-name {
+    font-size: 0.94rem;
+    font-weight: 500;
+    color: var(--text-2);
+    line-height: 1.25;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.t-row.won  .t-name { color: var(--text); font-weight: 650; }
+.t-row.lost .t-name { color: var(--text-3); }
+.t-row.lost .t-badge { opacity: 0.55; }
+
+.t-goals {
+    margin-top: 3px;
+    font-size: 0.7rem;
+    color: var(--text-3);
+    line-height: 1.5;
+}
+.t-goals .min { color: var(--text-3); opacity: 0.75; }
+.t-goals .dot { margin: 0 5px; opacity: 0.4; }
+
+.t-score {
+    font-size: 1.3rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--text);
+    min-width: 20px;
+    text-align: right;
+}
+.t-row.lost .t-score { color: var(--text-3); font-weight: 600; }
+.t-score.pending { color: var(--text-3); font-weight: 400; }
+.t-pens {
+    margin-left: 5px;
+    font-size: 0.7rem;
+    color: var(--text-3);
+}
+
+/* ── Rodapé do cartão ── */
+.match-bot {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 14px;
+    padding-top: 10px;
+    border-top: 1px solid var(--line-soft);
+    font-size: 0.72rem;
+}
+
+.tally { display: inline-flex; gap: 10px; }
+.tally-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.7rem;
+    color: var(--text-3);
+}
+.tally-item.yellow { color: var(--yellow); }
+.tally-item.red    { color: var(--red); }
+
+.match-actions {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 14px;
+}
+.match-more {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--text-3);
+    font-size: 0.72rem;
+    transition: color 0.15s;
+}
+.match-more:hover { color: var(--text); }
+.match-more .ico { width: 13px; height: 13px; }
+/* a seta aponta para o lado: o painel abre em outra tela, não aqui embaixo */
+.match-more .chev { transform: rotate(-90deg); }
+
+@media (max-width: 720px) {
+    .match-actions { gap: 12px; }
+}

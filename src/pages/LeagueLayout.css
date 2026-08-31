@@ -1,0 +1,31 @@
+/* LeagueLayout.css — chamada da seção (nome do campeonato + resumo do dia) */
+
+.lead { padding: 46px 0 22px; }
+
+.lead-title {
+    font-size: clamp(1.9rem, 4.5vw, 2.7rem);
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    line-height: 1.05;
+}
+
+.lead-sub {
+    margin-top: 9px;
+    font-size: 0.84rem;
+    color: var(--text-2);
+}
+/* pontinho vermelho quando tem jogo rolando */
+.lead-sub.has-live::before {
+    content: '';
+    display: inline-block;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--red);
+    margin-right: 8px;
+    vertical-align: 1px;
+    animation: pulse 1.8s ease-in-out infinite;
+}
+
+@media (max-width: 720px) {
+    .lead { padding: 32px 0 18px; }
+}

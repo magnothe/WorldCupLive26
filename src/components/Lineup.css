@@ -1,0 +1,232 @@
+/* ──────────────────────────────────────────────
+   Lineup.css — Escalação
+
+   Dois campinhos empilhados. O mandante ataca para cima (column-reverse, com
+   o goleiro embaixo) e o visitante para baixo — os dois times ficam de frente
+   um para o outro, como num gráfico de transmissão.
+   ────────────────────────────────────────────── */
+
+.lineup {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    --face: 34px;
+}
+
+.lu-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    font-size: 0.76rem;
+}
+.lu-crest { width: 18px; height: 18px; object-fit: contain; flex-shrink: 0; }
+.lu-team-name {
+    color: var(--text);
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.lu-form {
+    margin-left: auto;
+    flex-shrink: 0;
+    font-size: 0.64rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    color: var(--text-3);
+}
+
+/* ── Campinho ── */
+.pitch {
+    position: relative;
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 4px;
+    padding: 14px 4px;
+    border: 1px solid var(--line-soft);
+    border-radius: 8px;
+    background:
+        repeating-linear-gradient(180deg,
+            rgba(255,255,255,0.016) 0 26px, transparent 26px 52px),
+        linear-gradient(180deg, #0f2118, #0c1a13);
+    overflow: hidden;
+}
+.pitch.is-away { flex-direction: column; }
+
+/* linha de meio-campo + círculo central, do lado do ataque */
+.pitch::before,
+.pitch::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    border: 1px solid rgba(255,255,255,0.07);
+    pointer-events: none;
+}
+.pitch::before {
+    top: 0;
+    width: 96%;
+    border-width: 0 0 1px;
+    transform: translateX(-50%);
+}
+.pitch::after {
+    top: 0;
+    width: 74px; height: 74px;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+}
+/* no visitante o ataque é embaixo, então o meio-campo desce junto */
+.pitch.is-away::before { top: auto; bottom: 0; }
+.pitch.is-away::after  { top: auto; bottom: 0; transform: translate(-50%, 50%); }
+
+.lu-line {
+    position: relative;
+    display: flex;
+    justify-content: space-evenly;
+    align-items: flex-start;
+    gap: 2px;
+}
+
+.lu-p {
+    flex: 1 1 0;
+    min-width: 0;
+    max-width: 76px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 0;
+}
+.lu-pname {
+    max-width: 100%;
+    font-size: 0.6rem;
+    line-height: 1.25;
+    color: var(--text-2);
+    text-align: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ── Rosto ── */
+.lu-avatar { position: relative; flex-shrink: 0; }
+
+.lu-face {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--face);
+    height: var(--face);
+    border-radius: 50%;
+    overflow: hidden;
+    background: var(--surface);
+    border: 1px solid rgba(255,255,255,0.12);
+}
+/* iniciais — ficam à mostra quando a imagem não carrega */
+.lu-face i {
+    font-style: normal;
+    font-size: 0.6rem;
+    font-weight: 600;
+    color: rgba(255,255,255,0.75);
+    letter-spacing: 0.02em;
+}
+.lu-face img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+}
+/* retrato preenche o círculo; a camisa fica inteira e com folga, senão vira
+   um disco de cor chapada e o número dela briga com o do selo */
+.lu-face.is-photo img { object-fit: cover; object-position: 50% 12%; }
+.lu-face.is-shirt img { object-fit: contain; padding: 4px; }
+
+/* A camisa da ESPN já vem numerada — o selo só entra sobre um retrato ou
+   quando a imagem não carregou (classe is-bare), para não duplicar o número. */
+.lu-face.is-shirt ~ .lu-num { display: none; }
+.lu-avatar.is-bare .lu-num  { display: block; }
+
+.lu-num {
+    position: absolute;
+    right: -3px; bottom: -3px;
+    min-width: 15px;
+    padding: 0 3px;
+    font-size: 0.56rem;
+    font-weight: 700;
+    line-height: 15px;
+    text-align: center;
+    color: var(--text);
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+}
+
+.lu-marks {
+    position: absolute;
+    left: -5px; top: -4px;
+    display: flex;
+    gap: 1px;
+}
+.lu-mark {
+    display: flex;
+    padding: 1px;
+    border-radius: 4px;
+    background: var(--surface-2);
+    border: 1px solid var(--line-soft);
+}
+.lu-mark .ico { width: 9px; height: 9px; }
+.lu-mark.goal   { color: var(--text); }
+.lu-mark.yellow { color: var(--yellow); }
+.lu-mark.red    { color: var(--red); }
+.lu-mark.out    { color: var(--red); transform: rotate(180deg); }
+
+/* ── Banco ── */
+.lu-bench { margin-top: 10px; }
+.lu-bench-head {
+    font-size: 0.58rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-3);
+    margin-bottom: 8px;
+}
+.lu-bench-list {
+    list-style: none;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+    gap: 7px 14px;
+}
+.lu-sub {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+    font-size: 0.7rem;
+    color: var(--text-3);
+    --face: 22px;
+}
+.lu-sub .lu-face i { font-size: 0.5rem; }
+.lu-sub-num {
+    min-width: 14px;
+    font-size: 0.62rem;
+    color: var(--text-3);
+    text-align: right;
+}
+.lu-sub-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.lu-sub.is-in .lu-sub-name { color: var(--text-2); }
+.lu-in { display: flex; color: var(--green); flex-shrink: 0; }
+.lu-in .ico { width: 11px; height: 11px; }
+/* no banco as marcas entram na linha, não sobre a foto */
+.lu-sub .lu-marks { position: static; display: inline-flex; }
+
+@media (max-width: 720px) {
+    .lineup { --face: 30px; }
+    .lu-bench-list { grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); }
+}
